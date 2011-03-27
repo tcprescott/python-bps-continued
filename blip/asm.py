@@ -20,7 +20,7 @@ def disassemble(in_buf, out_buf):
 
 	# target size
 	targetsize = util.read_var_int(in_buf)
-	out_buf.write("targetsize: {0:d}\n".format(sourcesize))
+	out_buf.write("targetsize: {0:d}\n".format(targetsize))
 
 	# metadata
 	metadatasize = util.read_var_int(in_buf)
