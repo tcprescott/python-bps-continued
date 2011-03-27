@@ -1,0 +1,5 @@
+#!/usr/bin/python3
+import sys
+from blip import asm
+
+asm.disassemble(open(sys.argv[1], 'rb'), sys.stdout)

@@ -1,0 +1,115 @@
+"""
+Utility methods used when reading Blip patches.
+"""
+# For copyright and licensing information, see the file COPYING.
+import io
+from zlib import crc32
+
+class CRCIOWrapper(io.IOBase):
+	"""
+	A wrapper for an IO instance that tracks the CRC32 of data read or written.
+
+	This wrapper prohibits seeking. It doesn't prohibit reading from and
+	writing to the same file, but that's not a very smart thing to do.
+	"""
+
+	def __init__(self, inner):
+		self.inner = inner
+		self.crc32 = 0
+
+	def _update_crc32(self, data):
+		self.crc32 = crc32(data, self.crc32)
+		return data
+
+	def __getattr__(self, name):
+		return getattr(self.inner, name)
+
+	# Methods from IOBase
+
+	def readline(self, *args, **kwargs):
+		return self._update_crc32(self.inner.readline(*args,**kwargs))
+
+	def readlines(self, *args, **kwargs):
+		return [
+				self._update_crc32(line)
+				for line in self.inner.readlines(*args, **kwargs)
+			]
+
+	def seek(self, *args, **kwargs):
+		raise io.UnsupportedOperation("Seeking not supported.")
+
+	def truncate(self, size=None):
+		if size not in (None, 0):
+			raise io.UnsupportedOperation(
+					"Cannot truncate to size {0}".format(size)
+				)
+
+		if size == 0:
+			self.crc32 = 0
+
+		return self.inner.truncate(size)
+
+	def writelines(self, lines):
+		return self.inner.writelines([
+				self._update_crc32(line)
+				for line in lines
+			])
+
+	# Methods from RawIOBase
+	
+	def read(self, *args, **kwargs):
+		return self._update_crc32(self.inner.read(*args,**kwargs))
+
+	def readall(self, *args, **kwargs):
+		return self._update_crc32(self.inner.readall(*args,**kwargs))
+
+	def readinto(self, *args, **kwargs):
+		return self._update_crc32(self.inner.readinto(*args,**kwargs))
+
+	def write(self, data):
+		return self.inner.write(self._update_crc32(data))
+
+	# Methods from BufferedIOBase
+	
+	def read1(self, *args, **kwargs):
+		return self._update_crc32(self.inner.read1(*args,**kwargs))
+
+
+def read_var_int(handle):
+	"""
+	Read a variable-length integer from the given file handle.
+	"""
+	res = 0
+	shift = 1
+
+	while True:
+		byte = handle.read(1)[0]
+		res += (byte & 0x7f) * shift
+		if byte & 0x80: break
+		shift <<= 7
+		res += shift
+
+	return res
+
+
+def write_var_int(number, handle):
+	"""
+	Writes a variable-length integer to the given file handle.
+	"""
+	buf = bytearray()
+	shift = 1
+
+	while True:
+		buf.append(number & 0x7F)
+
+		number -= buf[-1]
+
+		if number == 0:
+			buf[-1] |= 0x80
+			break
+
+		number -= shift
+		number >>= 7
+		shift += 7
+
+	handle.write(buf)
