@@ -18,7 +18,7 @@ class CRCIOWrapper(io.IOBase):
 		self.crc32 = 0
 
 	def _update_crc32(self, data):
-		self.crc32 = crc32(data, self.crc32)
+		self.crc32 = crc32(data, self.crc32) & 0xffffffff
 		return data
 
 	def __getattr__(self, name):
