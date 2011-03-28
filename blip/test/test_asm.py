@@ -2,7 +2,7 @@
 import unittest
 from io import BytesIO, StringIO
 from blip import asm
-from blip.test.util import read_blp, read_blpa
+from blip.test.util import find_blp, find_blpa
 
 
 class TestDisassembler(unittest.TestCase):
@@ -11,19 +11,19 @@ class TestDisassembler(unittest.TestCase):
 		"""
 		The simplest possible patch should be disassembled correctly.
 		"""
-		in_buf = BytesIO(read_blp("empty"))
+		in_buf = BytesIO(find_blp("empty"))
 		out_buf = StringIO()
 		asm.disassemble(in_buf, out_buf)
-		self.assertMultiLineEqual(out_buf.getvalue(), read_blpa("empty"))
+		self.assertMultiLineEqual(out_buf.getvalue(), find_blpa("empty"))
 
 	def testPatchWithMetadata(self):
 		"""
 		We correctly disassemble a patch with metadata.
 		"""
-		in_buf = BytesIO(read_blp("metadata"))
+		in_buf = BytesIO(find_blp("metadata"))
 		out_buf = StringIO()
 		asm.disassemble(in_buf, out_buf)
-		self.assertMultiLineEqual(out_buf.getvalue(), read_blpa("metadata"))
+		self.assertMultiLineEqual(out_buf.getvalue(), find_blpa("metadata"))
 
 
 class TestAssembler(unittest.TestCase):
@@ -32,19 +32,19 @@ class TestAssembler(unittest.TestCase):
 		"""
 		The simplest possible patch should be assembled correctly.
 		"""
-		in_buf = StringIO(read_blpa("empty"))
+		in_buf = StringIO(find_blpa("empty"))
 		out_buf = BytesIO()
 		asm.assemble(in_buf, out_buf)
-		self.assertSequenceEqual(out_buf.getvalue(), read_blp("empty"))
+		self.assertSequenceEqual(out_buf.getvalue(), find_blp("empty"))
 
 	def testPatchWithMetadata(self):
 		"""
 		We correctly construct a patch with metadata.
 		"""
-		in_buf = StringIO(read_blpa("metadata"))
+		in_buf = StringIO(find_blpa("metadata"))
 		out_buf = BytesIO()
 		asm.assemble(in_buf, out_buf)
-		self.assertSequenceEqual(out_buf.getvalue(), read_blp("metadata"))
+		self.assertSequenceEqual(out_buf.getvalue(), find_blp("metadata"))
 
 
 if __name__ == "__main__":
