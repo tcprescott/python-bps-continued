@@ -3,7 +3,7 @@ import unittest
 from io import BytesIO, StringIO
 from blip import constants as C
 from blip.io import read_blip, write_blip, read_blip_asm, write_blip_asm
-from blip.test.util import find_blp, find_blpa
+from blip.test.util import find_blip, find_blipa
 
 
 class TestIO(unittest.TestCase):
@@ -15,10 +15,10 @@ class TestIO(unittest.TestCase):
 		# Test that we can write the asm version of the patch.
 		out_buf = StringIO()
 		write_blip_asm(eventlist, out_buf)
-		self.assertMultiLineEqual(out_buf.getvalue(), find_blpa(name))
+		self.assertMultiLineEqual(out_buf.getvalue(), find_blipa(name))
 
 		# Test that we can read the asm version of the patch.
-		in_buf = StringIO(find_blpa(name))
+		in_buf = StringIO(find_blipa(name))
 		items = list(read_blip_asm(in_buf))
 
 		self.assertSequenceEqual(eventlist, items)
@@ -26,17 +26,17 @@ class TestIO(unittest.TestCase):
 		# Test that we can write the binary patch.
 		out_buf = BytesIO()
 		write_blip(eventlist, out_buf)
-		self.assertSequenceEqual(out_buf.getvalue(), find_blp(name))
+		self.assertSequenceEqual(out_buf.getvalue(), find_blip(name))
 
 		# Test that we can read the binary patch.
-		in_buf = BytesIO(find_blp(name))
+		in_buf = BytesIO(find_blip(name))
 		items = list(read_blip(in_buf))
 
 		self.assertSequenceEqual(eventlist, items)
 
 		# Test that we can roundtrip the binary version through our reader and
 		# writer.
-		original = BytesIO(find_blp(name))
+		original = BytesIO(find_blip(name))
 		events = read_blip(original)
 		output = BytesIO()
 		write_blip(events, output)
@@ -45,7 +45,7 @@ class TestIO(unittest.TestCase):
 
 		# Test that we can roundtrip the asm version through our reader and
 		# writer.
-		original = StringIO(find_blpa(name))
+		original = StringIO(find_blipa(name))
 		events = read_blip_asm(original)
 		output = StringIO()
 		write_blip_asm(events, output)
