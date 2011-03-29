@@ -96,6 +96,23 @@ class TestIO(unittest.TestCase):
 				(C.TARGETCRC32, 0xD3D99E8B),
 			])
 
+	def testPatchWithSourceCopy(self):
+		"""
+		We can process a patch with a SourceCopy opcode.
+		"""
+		self._runtests("sourcecopy", [
+				(C.BLIP_MAGIC, 2, 2, ""),
+				# We copy the second byte in the source file.
+				(C.SOURCECOPY, 1, 1),
+				# We copy the first byte in the source file.
+				(C.SOURCECOPY, 1, -2),
+				# This CRC32 represents b'AB'
+				(C.SOURCECRC32, 0x30694C07),
+				# This CRC32 represents b'BA'
+				(C.TARGETCRC32, 0x824D4E7E),
+			])
+
+
 
 if __name__ == "__main__":
 	unittest.main()

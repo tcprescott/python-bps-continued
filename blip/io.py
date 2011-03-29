@@ -61,8 +61,17 @@ def read_blip(in_buf):
 
 		if opcode == C.OP_SOURCEREAD:
 			yield (C.SOURCEREAD, length)
+
 		elif opcode == C.OP_TARGETREAD:
 			yield (C.TARGETREAD, in_buf.read(length))
+
+		elif opcode == C.OP_SOURCECOPY:
+			raw_offset = util.read_var_int(in_buf)
+			offset = raw_offset >> 1
+			if raw_offset & 1:
+				offset = -offset
+			yield (C.SOURCECOPY, length, offset)
+
 		else:
 			raise CorruptFile("Unknown opcode: {opcode:02b}".format(
 				opcode=opcode))
@@ -112,7 +121,7 @@ def write_blip(iterable, out_buf):
 	util.write_var_int(len(metadata), out_buf)
 	out_buf.write(metadata)
 
-	allowedEvents = { C.SOURCECRC32, C.SOURCEREAD, C.TARGETREAD }
+	allowedEvents = { C.SOURCECRC32, C.SOURCEREAD, C.TARGETREAD, C.SOURCECOPY }
 	for item in iterable:
 		if item[0] not in allowedEvents:
 			raise CorruptFile("Event should be one of {allowed!r}, not "
@@ -131,6 +140,16 @@ def write_blip(iterable, out_buf):
 				)
 			out_buf.write(item[1])
 
+		elif item[0] == C.SOURCECOPY:
+			util.write_var_int(
+					(item[1] << C.OPCODESHIFT) | C.OP_SOURCECOPY,
+					out_buf,
+				)
+			util.write_var_int(
+					(abs(item[2]) << 1) | (item[2] < 0),
+					out_buf,
+				)
+
 		elif item[0] == C.SOURCECRC32:
 			_, value = item
 			out_buf.write(pack("I", value))
@@ -140,6 +159,9 @@ def write_blip(iterable, out_buf):
 			_, value = item
 			out_buf.write(pack("I", value))
 			allowedEvents = set()
+
+		else:
+			raise CorruptFile("Unknown event {0!r}".format(item[0]))
 
 	if len(allowedEvents) != 0:
 		raise CorruptFile("Event stream was truncated. Expected one of "
@@ -191,6 +213,11 @@ def read_blip_asm(in_buf):
 			data = a2b_hex(data)
 			yield (label, data)
 			targetoffset += len(data)
+
+		elif label == C.SOURCECOPY:
+			length, offset = [int(x) for x in value.split()]
+			yield (label, length, offset)
+			targetoffset += length
 
 		else:
 			raise CorruptFile("Unknown label: {label!r}".format(label=label))
@@ -256,6 +283,9 @@ def write_blip_asm(iterable, out_buf):
 				out_buf.write("\n")
 			out_buf.write(b2a_hex(data).decode('ascii'))
 			out_buf.write("\n.\n")
+
+		elif item[0] == C.SOURCECOPY:
+			out_buf.write("{0}: {1} {2:+d}\n".format(*item))
 
 		elif item[0] == C.SOURCECRC32:
 			out_buf.write("{0}: {1:08X}\n".format(*item))
