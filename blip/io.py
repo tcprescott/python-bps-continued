@@ -65,8 +65,8 @@ def write_blip(iterable, out_buf):
 	(magic, sourcesize, targetsize, metadata) = next(iterable)
 
 	if magic != C.BLIP_MAGIC:
-		raise CorruptFile("File magic should be {expected:r}, got "
-				"{actual:r}".format(expected=C.BLIP_MAGIC, actual=magic))
+		raise CorruptFile("File magic should be {expected!r}, got "
+				"{actual!r}".format(expected=C.BLIP_MAGIC, actual=magic))
 
 	out_buf.write(magic)
 	util.write_var_int(sourcesize, out_buf)
@@ -78,8 +78,8 @@ def write_blip(iterable, out_buf):
 	allowedEvents = { C.SOURCECRC32 }
 	for item in iterable:
 		if item[0] not in allowedEvents:
-			raise CorruptFile("Event should be one of {allowed}, not "
-					"{actual:r}".format(allowed=allowedEvents, actual=item[0]))
+			raise CorruptFile("Event should be one of {allowed!r}, not "
+					"{actual!r}".format(allowed=allowedEvents, actual=item[0]))
 
 		# FIXME: We should do a thing here that handles patch hunks.
 
@@ -94,7 +94,7 @@ def write_blip(iterable, out_buf):
 
 	if len(allowedEvents) != 0:
 		raise CorruptFile("Event stream was truncated. Expected one of "
-				"{allowed} next.".format(allowed=allowedEvents))
+				"{allowed!r} next.".format(allowed=allowedEvents))
 
 	# Lastly, write out the patch CRC32.
 	out_buf.write(pack("I", out_buf.crc32))
