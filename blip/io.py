@@ -38,7 +38,16 @@ def read_blip(in_buf):
 
 	yield (magic, sourcesize, targetsize, metadata)
 
-	# FIXME: We should do a thing here that counts through patch hunks.
+	targetoffset = 0
+	while targetoffset < targetsize:
+		value = util.read_var_int(in_buf)
+		opcode = value & C.OPCODEMASK
+		length = value >> C.OPCODESHIFT
+
+		if opcode == C.OP_SOURCEREAD:
+			yield (C.SOURCEREAD, length)
+
+		targetoffset += length
 
 	# footer
 	yield (C.SOURCECRC32, unpack("I", in_buf.read(4))[0])
@@ -49,7 +58,7 @@ def read_blip(in_buf):
 	expected = unpack("I", in_buf.read(4))[0]
 
 	if expected != actual:
-		raise CorruptFile("Patch claims its CRC32 is {expected:r}, but "
+		raise CorruptFile("Patch claims its CRC32 is {expected:08X}, but "
 				"it's really {actual:08X}".format(
 					expected=expected, actual=actual)
 			)
@@ -83,13 +92,17 @@ def write_blip(iterable, out_buf):
 	util.write_var_int(len(metadata), out_buf)
 	out_buf.write(metadata)
 
-	allowedEvents = { C.SOURCECRC32 }
+	allowedEvents = { C.SOURCECRC32, C.SOURCEREAD }
 	for item in iterable:
 		if item[0] not in allowedEvents:
 			raise CorruptFile("Event should be one of {allowed!r}, not "
 					"{actual!r}".format(allowed=allowedEvents, actual=item[0]))
 
-		# FIXME: We should do a thing here that handles patch hunks.
+		if item[0] == C.SOURCEREAD:
+			util.write_var_int(
+					(item[1] << C.OPCODESHIFT) | C.OP_SOURCEREAD,
+					out_buf,
+				)
 
 		if item[0] == C.SOURCECRC32:
 			_, value = item
@@ -124,9 +137,11 @@ def read_blip_asm(in_buf):
 
 	label, sourcesize = in_buf.readline().split(":")
 	_expect_label(C.SOURCESIZE, label)
+	sourcesize = int(sourcesize)
 
 	label, targetsize = in_buf.readline().split(":")
 	_expect_label(C.TARGETSIZE, label)
+	targetsize = int(targetsize)
 
 	label, _ = in_buf.readline().split(":")
 	_expect_label(C.METADATA, label)
@@ -140,17 +155,25 @@ def read_blip_asm(in_buf):
 		metadata.append(line)
 	metadata = "".join(metadata)
 
-	yield (C.BLIP_MAGIC, int(sourcesize), int(targetsize), metadata)
+	yield (C.BLIP_MAGIC, sourcesize, targetsize, metadata)
 
-	# FIXME: Handle patch hunks here.
+	targetoffset = 0
+	while targetoffset < targetsize:
+		label, value = in_buf.readline().split(":")
+		if label == C.SOURCEREAD:
+			length = int(value)
+			yield (label, length)
+			targetoffset += length
+		else:
+			raise CorruptFile("Unknown label: {label!r}".format(label=label))
 
 	label, sourcecrc32 = in_buf.readline().split(":")
 	_expect_label(C.SOURCECRC32, label)
-	yield (C.SOURCECRC32, int(sourcecrc32))
+	yield (C.SOURCECRC32, int(sourcecrc32, 16))
 
 	label, targetcrc32 = in_buf.readline().split(":")
 	_expect_label(C.TARGETCRC32, label)
-	yield (C.TARGETCRC32, int(targetcrc32))
+	yield (C.TARGETCRC32, int(targetcrc32, 16))
 
 
 def write_blip_asm(iterable, out_buf):
@@ -193,8 +216,12 @@ def write_blip_asm(iterable, out_buf):
 	# FIXME: We should do a thing here that counts through patch hunks.
 
 	for item in iterable:
-		if item[0] == C.SOURCECRC32:
+		if item[0] == C.SOURCEREAD:
+			out_buf.write("{0}: {1}\n".format(*item))
+		elif item[0] == C.SOURCECRC32:
 			out_buf.write("{0}: {1:08X}\n".format(*item))
 		elif item[0] == C.TARGETCRC32:
 			out_buf.write("{0}: {1:08X}\n".format(*item))
+		else:
+			raise CorruptFile("Unknown label: {label!r}".format(label=item[0]))
 

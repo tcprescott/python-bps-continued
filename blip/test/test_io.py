@@ -5,65 +5,37 @@ from blip import constants as C
 from blip.io import read_blip, write_blip, read_blip_asm, write_blip_asm
 from blip.test.util import find_blp, find_blpa
 
-EMPTY_PATCH_EVENTS = [
-		(C.BLIP_MAGIC, 0, 0, ""),
-		(C.SOURCECRC32, 0),
-		(C.TARGETCRC32, 0),
-	]
 
-METADATA_PATCH_EVENTS = [
-	(C.BLIP_MAGIC, 0, 0,
-		'<test>\n. leading "." is escaped\n</test>\n'),
-	(C.SOURCECRC32, 0),
-	(C.TARGETCRC32, 0),
-]
+class TestIO(unittest.TestCase):
 
-
-class TestReadBlip(unittest.TestCase):
-
-	def testEmptyPatch(self):
+	def _runtests(self, name, eventlist):
 		"""
-		The simplest possible patch should be read correctly.
+		Test the various interactions for a given patch.
 		"""
-		in_buf = BytesIO(find_blp("empty"))
+		# Test that we can read the asm version of the patch.
+		in_buf = StringIO(find_blpa(name))
+		items = list(read_blip_asm(in_buf))
+
+		self.assertSequenceEqual(eventlist, items)
+
+		# Test that we can write the asm version of the patch.
+		out_buf = StringIO()
+		write_blip_asm(eventlist, out_buf)
+		self.assertMultiLineEqual(out_buf.getvalue(), find_blpa(name))
+
+		# Test that we can read the binary patch.
+		in_buf = BytesIO(find_blp(name))
 		items = list(read_blip(in_buf))
 
-		self.assertSequenceEqual(EMPTY_PATCH_EVENTS, items)
+		self.assertSequenceEqual(eventlist, items)
 
-	def testPatchWithMetadata(self):
-		"""
-		We correctly read a patch with metadata.
-		"""
-		in_buf = BytesIO(find_blp("metadata"))
-		items = list(read_blip(in_buf))
-
-		self.assertListEqual(METADATA_PATCH_EVENTS, items)
-
-
-class TestWriteBlip(unittest.TestCase):
-
-	def testEmptyPatch(self):
-		"""
-		We can write out the simplest possible patch.
-		"""
+		# Test that we can write the binary patch.
 		out_buf = BytesIO()
-		write_blip(EMPTY_PATCH_EVENTS, out_buf)
-		self.assertSequenceEqual(out_buf.getvalue(), find_blp("empty"))
+		write_blip(eventlist, out_buf)
+		self.assertSequenceEqual(out_buf.getvalue(), find_blp(name))
 
-	def testPatchWithMetadata(self):
-		"""
-		We can write out a patch with metadata.
-		"""
-		out_buf = BytesIO()
-		write_blip(METADATA_PATCH_EVENTS, out_buf)
-		self.assertSequenceEqual(out_buf.getvalue(), find_blp("metadata"))
-
-
-class TestRoundtrip(unittest.TestCase):
-
-	def _test_roundtrip(self, name):
-		# Test that the Blip patch can round-trip through read_blip and
-		# write_blip
+		# Test that we can roundtrip the binary version through our reader and
+		# writer.
 		original = BytesIO(find_blp(name))
 		events = read_blip(original)
 		output = BytesIO()
@@ -71,8 +43,8 @@ class TestRoundtrip(unittest.TestCase):
 
 		self.assertSequenceEqual(original.getvalue(), output.getvalue())
 
-		# Test that the Blip assembler version can round-trip through
-		# read_blip_asm and write_blip_asm.
+		# Test that we can roundtrip the asm version through our reader and
+		# writer.
 		original = StringIO(find_blpa(name))
 		events = read_blip_asm(original)
 		output = StringIO()
@@ -82,36 +54,37 @@ class TestRoundtrip(unittest.TestCase):
 
 	def testEmptyPatch(self):
 		"""
-		The simplest possible patch can be read and written without error.
+		The simplest possible patch can be processed correctly.
 		"""
-		self._test_roundtrip("empty")
-
-	def testPatchWithMetadata(self):
-		"""
-		We can read and write a patch with metadata.
-		"""
-		self._test_roundtrip("metadata")
-
-
-class TestReadBlipAsm(unittest.TestCase):
-
-	def testEmptyPatch(self):
-		"""
-		The simplest possible patch should be read correctly.
-		"""
-		in_buf = StringIO(find_blpa("empty"))
-		items = list(read_blip_asm(in_buf))
-
-		self.assertSequenceEqual(EMPTY_PATCH_EVENTS, items)
+		self._runtests("empty", [
+				(C.BLIP_MAGIC, 0, 0, ""),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			])
 
 	def testPatchWithMetadata(self):
 		"""
 		We correctly read a patch with metadata.
 		"""
-		in_buf = StringIO(find_blpa("metadata"))
-		items = list(read_blip_asm(in_buf))
+		self._runtests("metadata", [
+				(C.BLIP_MAGIC, 0, 0,
+					'<test>\n. leading "." is escaped\n</test>\n'),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			])
 
-		self.assertListEqual(METADATA_PATCH_EVENTS, items)
+	def testPatchWithSourceRead(self):
+		"""
+		We can write out a patch with a SourceRead opcode.
+		"""
+		self._runtests("sourceread", [
+				(C.BLIP_MAGIC, 1, 1, ""),
+				(C.SOURCEREAD, 1),
+				# For the CRC32 to be correct, the one byte must be b'A'
+				(C.SOURCECRC32, 0xD3D99E8B),
+				(C.TARGETCRC32, 0xD3D99E8B),
+			])
+
 
 if __name__ == "__main__":
 	unittest.main()
