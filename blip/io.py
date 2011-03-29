@@ -57,7 +57,7 @@ def read_blip(in_buf):
 	while targetoffset < targetsize:
 		value = util.read_var_int(in_buf)
 		opcode = value & C.OPCODEMASK
-		length = value >> C.OPCODESHIFT
+		length = (value >> C.OPCODESHIFT) + 1
 
 		if opcode == C.OP_SOURCEREAD:
 			yield (C.SOURCEREAD, length)
@@ -129,20 +129,20 @@ def write_blip(iterable, out_buf):
 
 		if item[0] == C.SOURCEREAD:
 			util.write_var_int(
-					(item[1] << C.OPCODESHIFT) | C.OP_SOURCEREAD,
+					((item[1] - 1) << C.OPCODESHIFT) | C.OP_SOURCEREAD,
 					out_buf,
 				)
 
 		elif item[0] == C.TARGETREAD:
 			util.write_var_int(
-					(len(item[1]) << C.OPCODESHIFT) | C.OP_TARGETREAD,
+					((len(item[1]) - 1) << C.OPCODESHIFT) | C.OP_TARGETREAD,
 					out_buf,
 				)
 			out_buf.write(item[1])
 
 		elif item[0] == C.SOURCECOPY:
 			util.write_var_int(
-					(item[1] << C.OPCODESHIFT) | C.OP_SOURCECOPY,
+					((item[1] - 1) << C.OPCODESHIFT) | C.OP_SOURCECOPY,
 					out_buf,
 				)
 			util.write_var_int(
