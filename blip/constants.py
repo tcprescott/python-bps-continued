@@ -1,5 +1,5 @@
 BLIP_MAGIC = b'blip'
-BLIPASM_MAGIC = 'blipasm'
+BLIPASM_MAGIC = 'blipasm\n'
 
 # Headings used by the blip assembly format.
 SOURCESIZE  = "sourcesize"

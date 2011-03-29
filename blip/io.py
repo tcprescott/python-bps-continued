@@ -1,5 +1,5 @@
 """
-Tools for reading blip patches.
+Tools for reading and writing blip patches.
 """
 from struct import pack, unpack
 from blip import util
@@ -7,6 +7,13 @@ from blip import constants as C
 
 class CorruptFile(ValueError):
 	pass
+
+
+def _expect_label(expected, actual):
+	if actual != expected:
+		raise CorruptFile("Expected {expected:r} field, "
+				"not {actual:r}".format(expected=expected, actual=actual))
+
 
 def read_blip(in_buf):
 	"""
@@ -46,6 +53,7 @@ def read_blip(in_buf):
 				"it's really {actual:08X}".format(
 					expected=expected, actual=actual)
 			)
+
 
 def write_blip(iterable, out_buf):
 	"""
@@ -98,3 +106,95 @@ def write_blip(iterable, out_buf):
 
 	# Lastly, write out the patch CRC32.
 	out_buf.write(pack("I", out_buf.crc32))
+
+
+def read_blip_asm(in_buf):
+	"""
+	Yields Blip patch instructions from the Blip patch in in_buf.
+
+	in_buf should implement io.IOBase, opened in 'rt' mode.
+	"""
+	# header
+	magic = in_buf.readline()
+
+	if magic != C.BLIPASM_MAGIC:
+		raise CorruptFile("Blip asm should have magic set to {expected!r}, "
+				"not {actual!r}".format(expected=C.BLIPASM_MAGIC, actual=magic)
+			)
+
+	label, sourcesize = in_buf.readline().split(":")
+	_expect_label(C.SOURCESIZE, label)
+
+	label, targetsize = in_buf.readline().split(":")
+	_expect_label(C.TARGETSIZE, label)
+
+	label, _ = in_buf.readline().split(":")
+	_expect_label(C.METADATA, label)
+
+	metadata = []
+	while True:
+		line = in_buf.readline()
+		if line == ".\n":
+			break
+		if line.startswith("."): line = line[1:]
+		metadata.append(line)
+	metadata = "".join(metadata)
+
+	yield (C.BLIP_MAGIC, int(sourcesize), int(targetsize), metadata)
+
+	# FIXME: Handle patch hunks here.
+
+	label, sourcecrc32 = in_buf.readline().split(":")
+	_expect_label(C.SOURCECRC32, label)
+	yield (C.SOURCECRC32, int(sourcecrc32))
+
+	label, targetcrc32 = in_buf.readline().split(":")
+	_expect_label(C.TARGETCRC32, label)
+	yield (C.TARGETCRC32, int(targetcrc32))
+
+
+def write_blip_asm(iterable, out_buf):
+	"""
+	Encodes Blip patch instructions into Blip assembler in out_buf.
+
+	iterable should yield a sequence of Blip patch instructions.
+
+	out_buf should implement io.IOBase, opened in 'wt' mode.
+	"""
+	# We really want an iterable.
+	iterable = iter(iterable)
+
+	# header
+	(magic, sourcesize, targetsize, metadata) = next(iterable)
+
+	if magic != C.BLIP_MAGIC:
+		raise CorruptFile("File magic should be {expected!r}, got "
+				"{actual!r}".format(expected=C.BLIP_MAGIC, actual=magic))
+	out_buf.write(C.BLIPASM_MAGIC)
+
+	out_buf.write("{0}: {1:d}\n".format(C.SOURCESIZE, sourcesize))
+	out_buf.write("{0}: {1:d}\n".format(C.TARGETSIZE, targetsize))
+
+	# metadata
+	out_buf.write("metadata:\n")
+	lines = metadata.split("\n")
+	if lines[-1] == "":
+		lines.pop(-1)
+	for line in lines:
+		# Because we use a line containing only "." as the delimiter, we
+		# need to escape all the lines beginning with dots.
+		if line.startswith("."):
+			out_buf.write(".")
+		out_buf.write(line)
+		out_buf.write("\n")
+
+	out_buf.write(".\n")
+
+	# FIXME: We should do a thing here that counts through patch hunks.
+
+	for item in iterable:
+		if item[0] == C.SOURCECRC32:
+			out_buf.write("{0}: {1:08X}\n".format(*item))
+		elif item[0] == C.TARGETCRC32:
+			out_buf.write("{0}: {1:08X}\n".format(*item))
+
