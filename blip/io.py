@@ -2,8 +2,12 @@
 Tools for reading and writing blip patches.
 """
 from struct import pack, unpack
+import re
+from binascii import b2a_hex, a2b_hex
 from blip import util
 from blip import constants as C
+
+NON_HEX_DIGIT_RE = re.compile("[^0-9A-Fa-f]")
 
 class CorruptFile(ValueError):
 	pass
@@ -13,6 +17,17 @@ def _expect_label(expected, actual):
 	if actual != expected:
 		raise CorruptFile("Expected {expected:r} field, "
 				"not {actual:r}".format(expected=expected, actual=actual))
+
+
+def _read_multiline_text(in_buf):
+	lines = []
+	while True:
+		line = in_buf.readline()
+		if line == ".\n":
+			break
+		if line.startswith("."): line = line[1:]
+		lines.append(line)
+	return "".join(lines)
 
 
 def read_blip(in_buf):
@@ -28,8 +43,8 @@ def read_blip(in_buf):
 	magic = in_buf.read(4)
 
 	if magic != C.BLIP_MAGIC:
-		raise CorruptFile("File magic should be {expected:r}, got "
-				"{actual:r}".format(expected=C.BLIP_MAGIC, actual=magic))
+		raise CorruptFile("File magic should be {expected!r}, got "
+				"{actual!r}".format(expected=C.BLIP_MAGIC, actual=magic))
 
 	sourcesize = util.read_var_int(in_buf)
 	targetsize = util.read_var_int(in_buf)
@@ -46,6 +61,11 @@ def read_blip(in_buf):
 
 		if opcode == C.OP_SOURCEREAD:
 			yield (C.SOURCEREAD, length)
+		elif opcode == C.OP_TARGETREAD:
+			yield (C.TARGETREAD, in_buf.read(length))
+		else:
+			raise CorruptFile("Unknown opcode: {opcode:02b}".format(
+				opcode=opcode))
 
 		targetoffset += length
 
@@ -92,7 +112,7 @@ def write_blip(iterable, out_buf):
 	util.write_var_int(len(metadata), out_buf)
 	out_buf.write(metadata)
 
-	allowedEvents = { C.SOURCECRC32, C.SOURCEREAD }
+	allowedEvents = { C.SOURCECRC32, C.SOURCEREAD, C.TARGETREAD }
 	for item in iterable:
 		if item[0] not in allowedEvents:
 			raise CorruptFile("Event should be one of {allowed!r}, not "
@@ -104,10 +124,18 @@ def write_blip(iterable, out_buf):
 					out_buf,
 				)
 
-		if item[0] == C.SOURCECRC32:
+		elif item[0] == C.TARGETREAD:
+			util.write_var_int(
+					(len(item[1]) << C.OPCODESHIFT) | C.OP_TARGETREAD,
+					out_buf,
+				)
+			out_buf.write(item[1])
+
+		elif item[0] == C.SOURCECRC32:
 			_, value = item
 			out_buf.write(pack("I", value))
 			allowedEvents = { C.TARGETCRC32 }
+
 		elif item[0] == C.TARGETCRC32:
 			_, value = item
 			out_buf.write(pack("I", value))
@@ -145,15 +173,7 @@ def read_blip_asm(in_buf):
 
 	label, _ = in_buf.readline().split(":")
 	_expect_label(C.METADATA, label)
-
-	metadata = []
-	while True:
-		line = in_buf.readline()
-		if line == ".\n":
-			break
-		if line.startswith("."): line = line[1:]
-		metadata.append(line)
-	metadata = "".join(metadata)
+	metadata = _read_multiline_text(in_buf)
 
 	yield (C.BLIP_MAGIC, sourcesize, targetsize, metadata)
 
@@ -164,6 +184,14 @@ def read_blip_asm(in_buf):
 			length = int(value)
 			yield (label, length)
 			targetoffset += length
+
+		elif label == C.TARGETREAD:
+			data = _read_multiline_text(in_buf)
+			data = NON_HEX_DIGIT_RE.sub("", data)
+			data = a2b_hex(data)
+			yield (label, data)
+			targetoffset += len(data)
+
 		else:
 			raise CorruptFile("Unknown label: {label!r}".format(label=label))
 
@@ -218,10 +246,23 @@ def write_blip_asm(iterable, out_buf):
 	for item in iterable:
 		if item[0] == C.SOURCEREAD:
 			out_buf.write("{0}: {1}\n".format(*item))
+
+		elif item[0] == C.TARGETREAD:
+			out_buf.write("{0}:\n".format(item[0]))
+			data = item[1]
+			while len(data) > 40:
+				head, data = data[:40], data[40:]
+				out_buf.write(b2a_hex(head).decode('ascii'))
+				out_buf.write("\n")
+			out_buf.write(b2a_hex(data).decode('ascii'))
+			out_buf.write("\n.\n")
+
 		elif item[0] == C.SOURCECRC32:
 			out_buf.write("{0}: {1:08X}\n".format(*item))
+
 		elif item[0] == C.TARGETCRC32:
 			out_buf.write("{0}: {1:08X}\n".format(*item))
+
 		else:
 			raise CorruptFile("Unknown label: {label!r}".format(label=item[0]))
 
