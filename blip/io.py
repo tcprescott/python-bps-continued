@@ -10,7 +10,9 @@ class CorruptFile(ValueError):
 
 def read_blip(in_buf):
 	"""
-	Yields events representing parts of the Blip patch in in_buf.
+	Yields Blip patch instructions from the Blip patch in in_buf.
+
+	in_buf should implement io.IOBase, opened in 'rb' mode.
 	"""
 	# Keep track of the input file's CRC32, so we can check it at the end.
 	in_buf = util.CRCIOWrapper(in_buf)
@@ -47,7 +49,11 @@ def read_blip(in_buf):
 
 def write_blip(iterable, out_buf):
 	"""
-	Encodes events from the iterable into a Blip patch in out_buf.
+	Encodes Blip patch instructions from the iterable into a patch in out_buf.
+
+	iterable should yield a sequence of Blip patch instructions.
+
+	out_buf should implement io.IOBase, opened in 'wb' mode.
 	"""
 	# We really want an iterable.
 	iterable = iter(iterable)
