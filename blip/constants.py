@@ -7,7 +7,6 @@ TARGETSIZE  = "targetsize"
 METADATA    = "metadata"
 SOURCECRC32 = "sourcecrc32"
 TARGETCRC32 = "targetcrc32"
-PATCHCRC32  = "patchcrc32" # not actually used by the assembly language
 
 # Values used in patch-hunk encoding.
 SOURCEREAD = 0b00
