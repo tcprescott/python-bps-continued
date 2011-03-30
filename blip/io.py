@@ -72,6 +72,14 @@ def read_blip(in_buf):
 				offset = -offset
 			yield (C.SOURCECOPY, length, offset)
 
+		elif opcode == C.OP_TARGETCOPY:
+			raw_offset = util.read_var_int(in_buf)
+			offset = raw_offset >> 1
+			if raw_offset & 1:
+				offset = -offset
+			yield (C.TARGETCOPY, length, offset)
+
+
 		else:
 			raise CorruptFile("Unknown opcode: {opcode:02b}".format(
 				opcode=opcode))
@@ -121,7 +129,11 @@ def write_blip(iterable, out_buf):
 	util.write_var_int(len(metadata), out_buf)
 	out_buf.write(metadata)
 
-	allowedEvents = { C.SOURCECRC32, C.SOURCEREAD, C.TARGETREAD, C.SOURCECOPY }
+	allowedEvents = {
+			C.SOURCECRC32,
+			C.SOURCEREAD, C.TARGETREAD,
+			C.SOURCECOPY, C.TARGETCOPY
+		}
 	for item in iterable:
 		if item[0] not in allowedEvents:
 			raise CorruptFile("Event should be one of {allowed!r}, not "
@@ -143,6 +155,16 @@ def write_blip(iterable, out_buf):
 		elif item[0] == C.SOURCECOPY:
 			util.write_var_int(
 					((item[1] - 1) << C.OPCODESHIFT) | C.OP_SOURCECOPY,
+					out_buf,
+				)
+			util.write_var_int(
+					(abs(item[2]) << 1) | (item[2] < 0),
+					out_buf,
+				)
+
+		elif item[0] == C.TARGETCOPY:
+			util.write_var_int(
+					((item[1] - 1) << C.OPCODESHIFT) | C.OP_TARGETCOPY,
 					out_buf,
 				)
 			util.write_var_int(
@@ -214,7 +236,7 @@ def read_blip_asm(in_buf):
 			yield (label, data)
 			targetoffset += len(data)
 
-		elif label == C.SOURCECOPY:
+		elif label in (C.SOURCECOPY, C.TARGETCOPY):
 			length, offset = [int(x) for x in value.split()]
 			yield (label, length, offset)
 			targetoffset += length
@@ -268,8 +290,6 @@ def write_blip_asm(iterable, out_buf):
 
 	out_buf.write(".\n")
 
-	# FIXME: We should do a thing here that counts through patch hunks.
-
 	for item in iterable:
 		if item[0] == C.SOURCEREAD:
 			out_buf.write("{0}: {1}\n".format(*item))
@@ -285,6 +305,9 @@ def write_blip_asm(iterable, out_buf):
 			out_buf.write("\n.\n")
 
 		elif item[0] == C.SOURCECOPY:
+			out_buf.write("{0}: {1} {2:+d}\n".format(*item))
+
+		elif item[0] == C.TARGETCOPY:
 			out_buf.write("{0}: {1} {2:+d}\n".format(*item))
 
 		elif item[0] == C.SOURCECRC32:

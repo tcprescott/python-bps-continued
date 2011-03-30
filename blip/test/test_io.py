@@ -112,6 +112,22 @@ class TestIO(unittest.TestCase):
 				(C.TARGETCRC32, 0x824D4E7E),
 			])
 
+	def testPatchWithTargetCopy(self):
+		"""
+		We can process a patch with a TargetCopy opcode.
+		"""
+		self._runtests("targetcopy", [
+				(C.BLIP_MAGIC, 0, 3, ""),
+				# Add a TargetRead opcode, so TargetCopy has something to copy.
+				(C.TARGETREAD, b'A'),
+				# Add a TargetCopy opcode that does the RLE trick of reading
+				# more data than is currently written.
+				(C.TARGETCOPY, 2, 0),
+				# This CRC32 represents b''
+				(C.SOURCECRC32, 0x00000000),
+				# This CRC32 represents b'AAA'
+				(C.TARGETCRC32, 0x66A031A7),
+			])
 
 
 if __name__ == "__main__":
