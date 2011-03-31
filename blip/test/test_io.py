@@ -438,6 +438,77 @@ class TestCheckStream(unittest.TestCase):
 				])
 			)
 
+	def testTargetCopyLimits(self):
+		"""
+		Raise CorruptFile if TargetCopy tries to copy from outside the file.
+		"""
+		# targetRelativeOffset starts at 0, we should complain if the first
+		# TargetCopy has an offset < 0
+		self.assertRaisesRegexp(CorruptFile, "beginning of the target", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 2, ""),
+					(C.TARGETREAD, b'A'),
+					(C.TARGETCOPY, 1, -1),
+				])
+			)
+
+		# An offset of 0 should be fine, however.
+		original = [
+				(C.BLIP_MAGIC, 0, 2, ""),
+				(C.TARGETREAD, b'A'),
+				(C.TARGETCOPY, 1, 0),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
+		# After the first TargetCopy, targetRelativeOffset has increased by the
+		# copy's length, so we can use a negative offset.
+		original = [
+				(C.BLIP_MAGIC, 0, 3, ""),
+				(C.TARGETREAD, b'A'),
+				(C.TARGETCOPY, 1, 0),
+				(C.TARGETCOPY, 1, -1),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
+		# Likewise, targetRelativeOffset + offset must be less than
+		# targetWriteOffset.
+		original = [
+				(C.BLIP_MAGIC, 0, 3, ""),
+				(C.TARGETREAD, b'A'),
+				(C.TARGETCOPY, 1, 0),
+				# Now targetRelativeOffset = 1 and targetWriteOffset = 2
+				(C.TARGETCOPY, 1, 0),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
+		# Trying to read the byte that targetWriteOffset is pointing at is not
+		# allowed.
+		self.assertRaisesRegexp(CorruptFile, "end of the written part", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 5, ""),
+					(C.TARGETREAD, b'A'),
+					# Now targetRelativeOffset = 1 and targetWriteOffset = 1
+					(C.TARGETCOPY, 1, 1),
+				])
+			)
+
+		# But it's OK if the length goes past targetWriteOffset; that's how RLE
+		# works.
+		original = [
+				(C.BLIP_MAGIC, 0, 5, ""),
+				(C.TARGETREAD, b'A'),
+				(C.TARGETCOPY, 4, 0),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
 	def testSourceCRC32Opcoode(self):
 		"""
 		Raise CorruptFile if a SourceCRC32 opcode has any problems.

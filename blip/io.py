@@ -186,6 +186,23 @@ def check_stream(iterable):
 			_check_length(item)
 			_check_offset(item)
 
+			# Not allowed to TargetCopy from before the beginning of the target
+			# file.
+			if targetRelativeOffset + item[2] < 0:
+				raise CorruptFile("bad hunk: reads from before the beginning "
+						"of the target file: {item!r}".format(item=item))
+
+			# Not allowed to TargetCopy an offset that points past the part
+			# we've written.
+			if targetRelativeOffset + item[2] >= targetWriteOffset:
+				raise CorruptFile("bad hunk: reads past the end "
+						"of the written part of the target file: "
+						"{item!r}".format(item=item))
+
+			# After each TargetCopy, the targetRelativeOffset pointer points at
+			# the end of the chunk that was copied.
+			targetRelativeOffset += (item[1] + item[2])
+
 			targetWriteOffset += item[1]
 
 		else:
