@@ -232,11 +232,11 @@ class TestCheckStream(unittest.TestCase):
 
 		# Can read right up to the end of the source file.
 		original = [
-					(C.BLIP_MAGIC, 5, 5, ""),
-					(C.SOURCEREAD, 5),
-					(C.SOURCECRC32, 0),
-					(C.TARGETCRC32, 0),
-				]
+				(C.BLIP_MAGIC, 5, 5, ""),
+				(C.SOURCEREAD, 5),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
 		self.assertSequenceEqual(original, list(check_stream(original)))
 
 		# Can't read past the end of the source file.
