@@ -134,8 +134,12 @@ def check_stream(iterable):
 			_check_param_count(item, 1)
 			_check_length(item)
 
-			# FIXME: Check that targetWriteOffset < sourceSize and
-			# (targetWriteOffset + length) < sourceSize
+			# This opcode reads from the source file, from targetWriteOffset to
+			# targetWriteOffset+length, so we need to be sure that byte-range
+			# exists in the source file as well as the target.
+			if targetWriteOffset + item[1] > sourceSize:
+				raise CorruptFile("bad hunk: reads past the end of the "
+						"source file: {item!r}".format(item=item))
 
 			targetWriteOffset += item[1]
 

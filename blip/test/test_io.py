@@ -230,6 +230,26 @@ class TestCheckStream(unittest.TestCase):
 				])
 			)
 
+		# Can read right up to the end of the source file.
+		original = [
+					(C.BLIP_MAGIC, 5, 5, ""),
+					(C.SOURCEREAD, 5),
+					(C.SOURCECRC32, 0),
+					(C.TARGETCRC32, 0),
+				]
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
+		# Can't read past the end of the source file.
+		self.assertRaisesRegexp(CorruptFile, "end of the source", list,
+				check_stream([
+					(C.BLIP_MAGIC, 5, 6, ""),
+					# Read part of the source file.
+					(C.SOURCEREAD, 1),
+					# Trying to read past the end of the source file.
+					(C.SOURCEREAD, 5),
+				])
+			)
+
 	def testTargetReadOpcode(self):
 		"""
 		Raise CorruptFile if a SourceRead opcode has any problems.
