@@ -332,6 +332,64 @@ class TestCheckStream(unittest.TestCase):
 				])
 			)
 
+	def testSourceCopyLimits(self):
+		"""
+		Raise CorruptFile if SourceCopy tries to copy from outside the file.
+		"""
+		# sourceRelativeOffset starts at 0, we should complain if the first
+		# SourceCopy has an offset < 0
+		self.assertRaisesRegexp(CorruptFile, "beginning of the source", list,
+				check_stream([
+					(C.BLIP_MAGIC, 1, 2, ""),
+					(C.SOURCECOPY, 2, -1),
+				])
+			)
+
+		# An offset of 0 should be fine, however.
+		original = [
+				(C.BLIP_MAGIC, 2, 2, ""),
+				(C.SOURCECOPY, 2, 0),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
+		# After the first SourceCopy, sourceRelativeOffset has increased by the
+		# the SourceCopy's length, so we can use a negative offset.
+		original = [
+				(C.BLIP_MAGIC, 1, 2, ""),
+				(C.SOURCECOPY, 1, 0),
+				(C.SOURCECOPY, 1, -1),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
+		# Likewise, sourceRelativeOffset + offset + length must be at most
+		# sourceSize.
+		original = [
+				(C.BLIP_MAGIC, 2, 2, ""),
+				# sourceRelativeOffset is 0
+				(C.SOURCECOPY, 1, 0),
+				# sourceRelativeOffset is now 1.
+				# sourceRelativeOffset + offset + length = sourceSize, so this
+				# should be OK.
+				(C.SOURCECOPY, 1, 0),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
+		# Here we read past the end of the source, which should raise an
+		# exception.
+		self.assertRaisesRegexp(CorruptFile, "end of the source", list,
+				check_stream([
+					(C.BLIP_MAGIC, 2, 3, ""),
+					(C.SOURCECOPY, 1, 0),
+					(C.SOURCECOPY, 1, 1),
+				])
+			)
+
 	def testTargetCopyOpcode(self):
 		"""
 		Raise CorruptFile if a TargetCopy opcode has any problems.
