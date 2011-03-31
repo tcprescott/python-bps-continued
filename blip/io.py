@@ -57,6 +57,12 @@ def _check_crc32(item):
 
 	Check the CRC32 parameter of this item.
 	"""
+	_check_param_count(item, 1)
+
+	if item[0] not in (C.SOURCECRC32, C.TARGETCRC32):
+		raise CorruptFile("bad hunk: expected crc32, not opcode {opcode}: "
+				"{item}".format(opcode=item[0], item=item))
+
 	if not isinstance(item[1], int):
 		raise CorruptFile("bad crc32: {crc32!r} is not a valid "
 				"integer: {item!r}".format(crc32=item[1], item=item))
@@ -115,10 +121,23 @@ def check_stream(iterable):
 
 	yield header
 
-	for item in iterable:
+	sourceSize           = header[1]
+	targetSize           = header[2]
+	targetWriteOffset    = 0
+	sourceRelativeOffset = 0
+	targetRelativeOffset = 0
+
+	while targetWriteOffset < targetSize:
+		item = next(iterable)
+
 		if item[0] == C.SOURCEREAD:
 			_check_param_count(item, 1)
 			_check_length(item)
+
+			# FIXME: Check that targetWriteOffset < sourceSize and
+			# (targetWriteOffset + length) < sourceSize
+
+			targetWriteOffset += item[1]
 
 		elif item[0] == C.TARGETREAD:
 			_check_param_count(item, 1)
@@ -132,29 +151,41 @@ def check_stream(iterable):
 				raise CorruptFile("bad hunk: targetread data must not be "
 						"empty: {item!r}".format(item=item))
 
+			targetWriteOffset += len(item[1])
+
 		elif item[0] == C.SOURCECOPY:
 			_check_param_count(item, 2)
 			_check_length(item)
 			_check_offset(item)
+
+			targetWriteOffset += item[1]
 
 		elif item[0] == C.TARGETCOPY:
 			_check_param_count(item, 2)
 			_check_length(item)
 			_check_offset(item)
 
-		elif item[0] == C.SOURCECRC32:
-			_check_param_count(item, 1)
-			_check_crc32(item)
-
-		elif item[0] == C.TARGETCRC32:
-			_check_param_count(item, 1)
-			_check_crc32(item)
+			targetWriteOffset += item[1]
 
 		else:
 			raise CorruptFile("bad hunk: unknown opcode {opcode}: "
-					"{item}".format(opcode=item[0], item=item))
+					"{item!r}".format(opcode=item[0], item=item))
+
+		if targetWriteOffset > targetSize:
+			raise CorruptFile("bad hunk: writes past the end of the target: "
+					"{item!r}".format(item=item))
 
 		yield item
+
+	sourcecrc32 = next(iterable)
+	_check_crc32(sourcecrc32)
+	yield sourcecrc32
+
+	targetcrc32 = next(iterable)
+	_check_crc32(targetcrc32)
+	yield targetcrc32
+
+	# FIXME: Check that the iterable is now empty.
 
 
 def _expect_label(expected, actual):
