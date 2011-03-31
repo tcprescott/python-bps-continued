@@ -85,6 +85,7 @@ def check_stream(iterable):
 	# Make sure we have an iterable.
 	iterable = iter(iterable)
 
+	# FIXME: Raise CorruptFile if this raises StopIteration
 	header = next(iterable)
 
 	if len(header) != 4:
@@ -128,6 +129,7 @@ def check_stream(iterable):
 	targetRelativeOffset = 0
 
 	while targetWriteOffset < targetSize:
+		# FIXME: Raise CorruptFile if this raises StopIteration
 		item = next(iterable)
 
 		if item[0] == C.SOURCEREAD:
@@ -196,10 +198,14 @@ def check_stream(iterable):
 
 		yield item
 
+	# FIXME: Raise CorruptFile if this raises StopIteration
+	# FIXME: Check that the opcode really is sourcecrc32
 	sourcecrc32 = next(iterable)
 	_check_crc32(sourcecrc32)
 	yield sourcecrc32
 
+	# FIXME: Raise CorruptFile if this raises StopIteration
+	# FIXME: Check that the opcode really is targetcrc32
 	targetcrc32 = next(iterable)
 	_check_crc32(targetcrc32)
 	yield targetcrc32
