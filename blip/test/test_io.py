@@ -3,6 +3,7 @@ import unittest
 from io import BytesIO, StringIO
 from blip import constants as C
 from blip.io import read_blip, write_blip, read_blip_asm, write_blip_asm
+from blip.io import check_stream, CorruptFile
 from blip.test.util import find_blip, find_blipa
 
 
@@ -129,6 +130,315 @@ class TestIO(unittest.TestCase):
 				(C.TARGETCRC32, 0x66A031A7),
 			])
 
+
+class TestCheckStream(unittest.TestCase):
+
+	def testEmptyPatch(self):
+		"""
+		The simplest possible patch does not cause an error.
+		"""
+		original = [
+				(C.BLIP_MAGIC, 0, 0, ""),
+				(C.SOURCECRC32, 0),
+				(C.TARGETCRC32, 0),
+			]
+
+		self.assertSequenceEqual(original, list(check_stream(original)))
+
+	def testHeaderChecking(self):
+		"""
+		Raise CorruptFile if the header has any problems.
+		"""
+		# Header chunk must have exactly 4 items.
+		self.assertRaisesRegexp(CorruptFile, "bad header", list,
+				check_stream([(C.BLIP_MAGIC, 0, "")]))
+		self.assertRaisesRegexp(CorruptFile, "bad header", list,
+				check_stream([(C.BLIP_MAGIC, 0, 0, 0, "")]))
+
+		# Magic number must be a bytes object.
+		self.assertRaisesRegexp(CorruptFile, "must be bytes", list,
+				check_stream([("blip", 0, 0, "")]))
+
+		# A bad value for the magic number raises an exception.
+		self.assertRaisesRegexp(CorruptFile, "bad magic", list,
+				check_stream([(b"sasquatch", 0, 0, "")]))
+
+		# File lengths must be integers
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([(C.BLIP_MAGIC, "foo", 0, "")]))
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([(C.BLIP_MAGIC, 0, "bar", "")]))
+
+		# File lengths must be positive
+		self.assertRaisesRegexp(CorruptFile, "at least zero", list,
+				check_stream([(C.BLIP_MAGIC, -37, 0, "")]))
+		self.assertRaisesRegexp(CorruptFile, "at least zero", list,
+				check_stream([(C.BLIP_MAGIC, 0, -23, "")]))
+
+		# Metadata must be a string.
+		self.assertRaisesRegexp(CorruptFile, "must be a string", list,
+				check_stream([(C.BLIP_MAGIC, 0, 0, b"")]))
+
+	def testUnrecognisedOpcode(self):
+		"""
+		Raise CorruptFile if there's an item with an unknown opcode.
+		"""
+		self.assertRaisesRegexp(CorruptFile, "unknown opcode", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(b'sasquatch', 42),
+				])
+			)
+
+	def testSourceReadOpcode(self):
+		"""
+		Raise CorruptFile if a SourceRead opcode has any problems.
+		"""
+		# SourceRead requires exactly one parameter.
+		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCEREAD,),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCEREAD, 1, 2),
+				])
+			)
+
+		# Length must be an integer
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCEREAD, "foo"),
+				])
+			)
+
+		# Length must be positive.
+		self.assertRaisesRegexp(CorruptFile, "greater than zero", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCEREAD, -1),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "greater than zero", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCEREAD, 0),
+				])
+			)
+
+	def testTargetReadOpcode(self):
+		"""
+		Raise CorruptFile if a SourceRead opcode has any problems.
+		"""
+		# TargetRead requires exactly one parameter.
+		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETREAD,),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETREAD, 1, 2),
+				])
+			)
+
+		# TargetRead's parameter must be bytes.
+		self.assertRaisesRegexp(CorruptFile, "must be bytes", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETREAD, 1),
+				])
+			)
+
+		# TargetRead's parameter must be non-empty.
+		self.assertRaisesRegexp(CorruptFile, "must not be empty", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETREAD, b''),
+				])
+			)
+
+	def testSourceCopyOpcode(self):
+		"""
+		Raise CorruptFile if a SourceCopy opcode has any problems.
+		"""
+		# SourceCopy requires exactly two parameters.
+		self.assertRaisesRegexp(CorruptFile, "requires 2 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECOPY, 1),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "requires 2 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECOPY, 1, 2, 3),
+				])
+			)
+
+		# Length must be an integer
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECOPY, "foo", 0),
+				])
+			)
+
+		# Length must be positive.
+		self.assertRaisesRegexp(CorruptFile, "greater than zero", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECOPY, -1, 0),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "greater than zero", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECOPY, 0, 0),
+				])
+			)
+
+		# Offset must be an integer
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECOPY, 1, "foo"),
+				])
+			)
+
+	def testTargetCopyOpcode(self):
+		"""
+		Raise CorruptFile if a TargetCopy opcode has any problems.
+		"""
+		# SourceCopy requires exactly two parameters.
+		self.assertRaisesRegexp(CorruptFile, "requires 2 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCOPY, 1),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "requires 2 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCOPY, 1, 2, 3),
+				])
+			)
+
+		# Length must be an integer
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCOPY, "foo", 0),
+				])
+			)
+
+		# Length must be positive.
+		self.assertRaisesRegexp(CorruptFile, "greater than zero", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCOPY, -1, 0),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "greater than zero", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCOPY, 0, 0),
+				])
+			)
+
+		# Offset must be an integer
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCOPY, 1, "foo"),
+				])
+			)
+
+	def testSourceCRC32Opcoode(self):
+		"""
+		Raise CorruptFile if a SourceCRC32 opcode has any problems.
+		"""
+		# SourcCRC32 requires exactly one parameter.
+		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECRC32,),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECRC32, 1, 2),
+				])
+			)
+
+		# CRC32 must be an integer
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECRC32, "foo"),
+				])
+			)
+
+		# CRC32 must be between 0 and 2**32 - 1
+		self.assertRaisesRegexp(CorruptFile, "at least zero", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECRC32, -1),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "less than 2\*\*32", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.SOURCECRC32, 2**32),
+				])
+			)
+
+	def testTargetCRC32Opcoode(self):
+		"""
+		Raise CorruptFile if a TargetCRC32 opcode has any problems.
+		"""
+		# SourcCRC32 requires exactly one parameter.
+		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCRC32,),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCRC32, 1, 2),
+				])
+			)
+
+		# CRC32 must be an integer
+		self.assertRaisesRegexp(CorruptFile, "not a valid integer", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCRC32, "foo"),
+				])
+			)
+
+		# CRC32 must be between 0 and 2**32 - 1
+		self.assertRaisesRegexp(CorruptFile, "at least zero", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCRC32, -1),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "less than 2\*\*32", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETCRC32, 2**32),
+				])
+			)
 
 if __name__ == "__main__":
 	unittest.main()

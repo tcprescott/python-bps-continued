@@ -13,6 +13,150 @@ class CorruptFile(ValueError):
 	pass
 
 
+def _check_param_count(item, count):
+	"""
+	Internal function.
+
+	Check that this item has the required parameter count.
+	"""
+	if len(item) - 1 != count:
+		raise CorruptFile("bad hunk: {opcode!r} requires {count} "
+				"parameter(s): {item!r}".format(opcode=item[0],
+					count=count, item=item))
+
+
+def _check_length(item):
+	"""
+	Internal function.
+
+	Check the length parameter of this item.
+	"""
+	if not isinstance(item[1], int):
+		raise CorruptFile("bad hunk: length {length!r} is not a valid "
+				"integer: {item!r}".format(length=item[1], item=item))
+
+	if item[1] <= 0:
+		raise CorruptFile("bad hunk: length {length!r} must be greater than "
+				"zero: {item!r}".format(length=item[1], item=item))
+
+
+def _check_offset(item):
+	"""
+	Internal function.
+
+	Check the offset parameter of this item.
+	"""
+	if not isinstance(item[2], int):
+		raise CorruptFile("bad hunk: offset {offset!r} is not a valid "
+				"integer: {item!r}".format(offset=item[1], item=item))
+
+
+def _check_crc32(item):
+	"""
+	Internal function.
+
+	Check the CRC32 parameter of this item.
+	"""
+	if not isinstance(item[1], int):
+		raise CorruptFile("bad crc32: {crc32!r} is not a valid "
+				"integer: {item!r}".format(crc32=item[1], item=item))
+
+	if item[1] < 0:
+		raise CorruptFile("bad crc32: must be at least zero: "
+				"{item!r}".format(crc32=item[1], item=item))
+
+	if item[1] > (2**32 - 1):
+		raise CorruptFile("bad crc32: must be less than "
+				"2**32: {item!r}".format(crc32=item[1], item=item))
+
+
+def check_stream(iterable):
+	"""
+	Yields items from iterable if they represent a valid Blip patch.
+
+	Raises CorruptFile if any problems are detected.
+	"""
+	# Make sure we have an iterable.
+	iterable = iter(iterable)
+
+	header = next(iterable)
+
+	if len(header) != 4:
+		raise CorruptFile("bad header: must have exactly 4 items, not "
+				"{header!r}".format(header=header))
+
+	if not isinstance(header[0], bytes):
+		raise CorruptFile("bad header: magic must be bytes, not "
+				"{magic!r}".format(magic=header[0]))
+
+	if header[0] != C.BLIP_MAGIC:
+		raise CorruptFile("bad magic: magic must be b'blip', not "
+				"{magic!r}".format(magic=header[0]))
+
+	if not isinstance(header[1], int):
+		raise CorruptFile("source size is not a valid integer: "
+				"{sourcesize!r}".format(sourcesize=header[1]))
+
+	if header[1] < 0:
+		raise CorruptFile("source size must be at least zero, not "
+				"{sourcesize!r}".format(sourcesize=header[1]))
+
+	if not isinstance(header[2], int):
+		raise CorruptFile("target size is not a valid integer: "
+				"{targetsize!r}".format(targetsize=header[2]))
+
+	if header[2] < 0:
+		raise CorruptFile("target size must be at least zero, not "
+				"{targetsize!r}".format(targetsize=header[2]))
+
+	if not isinstance(header[3], str):
+		raise CorruptFile("metadata must be a string, not "
+				"{metadata!r}".format(metadata=header[3]))
+
+	yield header
+
+	for item in iterable:
+		if item[0] == C.SOURCEREAD:
+			_check_param_count(item, 1)
+			_check_length(item)
+
+		elif item[0] == C.TARGETREAD:
+			_check_param_count(item, 1)
+
+			if not isinstance(item[1], bytes):
+				raise CorruptFile("bad hunk: targetread data must be bytes, "
+						"not {data!r}: {item!r}".format(data=item[1],
+							item=item))
+
+			if len(item[1]) == 0:
+				raise CorruptFile("bad hunk: targetread data must not be "
+						"empty: {item!r}".format(item=item))
+
+		elif item[0] == C.SOURCECOPY:
+			_check_param_count(item, 2)
+			_check_length(item)
+			_check_offset(item)
+
+		elif item[0] == C.TARGETCOPY:
+			_check_param_count(item, 2)
+			_check_length(item)
+			_check_offset(item)
+
+		elif item[0] == C.SOURCECRC32:
+			_check_param_count(item, 1)
+			_check_crc32(item)
+
+		elif item[0] == C.TARGETCRC32:
+			_check_param_count(item, 1)
+			_check_crc32(item)
+
+		else:
+			raise CorruptFile("bad hunk: unknown opcode {opcode}: "
+					"{item}".format(opcode=item[0], item=item))
+
+		yield item
+
+
 def _expect_label(expected, actual):
 	if actual != expected:
 		raise CorruptFile("Expected {expected:r} field, "
