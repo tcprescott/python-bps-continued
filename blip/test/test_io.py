@@ -513,7 +513,7 @@ class TestCheckStream(unittest.TestCase):
 		"""
 		Raise CorruptFile if a SourceCRC32 opcode has any problems.
 		"""
-		# SourcCRC32 requires exactly one parameter.
+		# SourceCRC32 requires exactly one parameter.
 		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
 				check_stream([
 					(C.BLIP_MAGIC, 0, 0, ""),
@@ -553,7 +553,7 @@ class TestCheckStream(unittest.TestCase):
 		"""
 		Raise CorruptFile if a TargetCRC32 opcode has any problems.
 		"""
-		# SourcCRC32 requires exactly one parameter.
+		# TargetCRC32 requires exactly one parameter.
 		self.assertRaisesRegexp(CorruptFile, "requires 1 parameter", list,
 				check_stream([
 					(C.BLIP_MAGIC, 0, 0, ""),
