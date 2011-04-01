@@ -340,18 +340,14 @@ def write_blip(iterable, out_buf):
 
 	out_buf should implement io.IOBase, opened in 'wb' mode.
 	"""
-	# We really want an iterable.
-	iterable = iter(iterable)
+	# Make sure we have a sensible stream to write.
+	iterable = check_stream(iterable)
 
 	# Keep track of the patch data's CRC32, so we can write it out at the end.
 	out_buf = util.CRCIOWrapper(out_buf)
 
 	# header
 	(magic, sourcesize, targetsize, metadata) = next(iterable)
-
-	if magic != C.BLIP_MAGIC:
-		raise CorruptFile("File magic should be {expected!r}, got "
-				"{actual!r}".format(expected=C.BLIP_MAGIC, actual=magic))
 
 	out_buf.write(magic)
 	util.write_var_int(sourcesize, out_buf)
@@ -360,16 +356,7 @@ def write_blip(iterable, out_buf):
 	util.write_var_int(len(metadata), out_buf)
 	out_buf.write(metadata)
 
-	allowedEvents = {
-			C.SOURCECRC32,
-			C.SOURCEREAD, C.TARGETREAD,
-			C.SOURCECOPY, C.TARGETCOPY
-		}
 	for item in iterable:
-		if item[0] not in allowedEvents:
-			raise CorruptFile("Event should be one of {allowed!r}, not "
-					"{actual!r}".format(allowed=allowedEvents, actual=item[0]))
-
 		if item[0] == C.SOURCEREAD:
 			util.write_var_int(
 					((item[1] - 1) << C.OPCODESHIFT) | C.OP_SOURCEREAD,
@@ -406,19 +393,13 @@ def write_blip(iterable, out_buf):
 		elif item[0] == C.SOURCECRC32:
 			_, value = item
 			out_buf.write(pack("I", value))
-			allowedEvents = { C.TARGETCRC32 }
 
 		elif item[0] == C.TARGETCRC32:
 			_, value = item
 			out_buf.write(pack("I", value))
-			allowedEvents = set()
 
 		else:
 			raise CorruptFile("Unknown event {0!r}".format(item[0]))
-
-	if len(allowedEvents) != 0:
-		raise CorruptFile("Event stream was truncated. Expected one of "
-				"{allowed!r} next.".format(allowed=allowedEvents))
 
 	# Lastly, write out the patch CRC32.
 	out_buf.write(pack("I", out_buf.crc32))
@@ -492,17 +473,13 @@ def write_blip_asm(iterable, out_buf):
 
 	out_buf should implement io.IOBase, opened in 'wt' mode.
 	"""
-	# We really want an iterable.
-	iterable = iter(iterable)
+	# Make sure we have a sensible stream to write.
+	iterable = check_stream(iterable)
 
 	# header
 	(magic, sourcesize, targetsize, metadata) = next(iterable)
 
-	if magic != C.BLIP_MAGIC:
-		raise CorruptFile("File magic should be {expected!r}, got "
-				"{actual!r}".format(expected=C.BLIP_MAGIC, actual=magic))
 	out_buf.write(C.BLIPASM_MAGIC)
-
 	out_buf.write("{0}: {1:d}\n".format(C.SOURCESIZE, sourcesize))
 	out_buf.write("{0}: {1:d}\n".format(C.TARGETSIZE, targetsize))
 
