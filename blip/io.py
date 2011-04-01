@@ -51,7 +51,7 @@ def _check_offset(item):
 				"integer: {item!r}".format(offset=item[1], item=item))
 
 
-def _check_crc32(item):
+def _check_crc32(item, expectedOpcode):
 	"""
 	Internal function.
 
@@ -59,9 +59,10 @@ def _check_crc32(item):
 	"""
 	_check_param_count(item, 1)
 
-	if item[0] not in (C.SOURCECRC32, C.TARGETCRC32):
-		raise CorruptFile("bad hunk: expected crc32, not opcode {opcode}: "
-				"{item}".format(opcode=item[0], item=item))
+	if item[0] != expectedOpcode:
+		raise CorruptFile("bad hunk: expected {expected}, not opcode "
+				"{opcode}: {item}".format(expected=expectedOpcode,
+					opcode=item[0], item=item))
 
 	if not isinstance(item[1], int):
 		raise CorruptFile("bad crc32: {crc32!r} is not a valid "
@@ -76,6 +77,18 @@ def _check_crc32(item):
 				"2**32: {item!r}".format(crc32=item[1], item=item))
 
 
+def _check_next(iterable):
+	"""
+	Internal function.
+
+	Check the iterable does have a next value, and return it.
+	"""
+	try:
+		return next(iterable)
+	except StopIteration:
+		raise CorruptFile("truncated patch: expected more opcodes after this.")
+
+
 def check_stream(iterable):
 	"""
 	Yields items from iterable if they represent a valid Blip patch.
@@ -86,7 +99,7 @@ def check_stream(iterable):
 	iterable = iter(iterable)
 
 	# FIXME: Raise CorruptFile if this raises StopIteration
-	header = next(iterable)
+	header = _check_next(iterable)
 
 	if len(header) != 4:
 		raise CorruptFile("bad header: must have exactly 4 items, not "
@@ -129,8 +142,7 @@ def check_stream(iterable):
 	targetRelativeOffset = 0
 
 	while targetWriteOffset < targetSize:
-		# FIXME: Raise CorruptFile if this raises StopIteration
-		item = next(iterable)
+		item = _check_next(iterable)
 
 		if item[0] == C.SOURCEREAD:
 			_check_param_count(item, 1)
@@ -215,16 +227,12 @@ def check_stream(iterable):
 
 		yield item
 
-	# FIXME: Raise CorruptFile if this raises StopIteration
-	# FIXME: Check that the opcode really is sourcecrc32
-	sourcecrc32 = next(iterable)
-	_check_crc32(sourcecrc32)
+	sourcecrc32 = _check_next(iterable)
+	_check_crc32(sourcecrc32, C.SOURCECRC32)
 	yield sourcecrc32
 
-	# FIXME: Raise CorruptFile if this raises StopIteration
-	# FIXME: Check that the opcode really is targetcrc32
-	targetcrc32 = next(iterable)
-	_check_crc32(targetcrc32)
+	targetcrc32 = _check_next(iterable)
+	_check_crc32(targetcrc32, C.TARGETCRC32)
 	yield targetcrc32
 
 	# FIXME: Check that the iterable is now empty.

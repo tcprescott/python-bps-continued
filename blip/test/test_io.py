@@ -627,6 +627,39 @@ class TestCheckStream(unittest.TestCase):
 				])
 			)
 
+	def testTruncatedStream(self):
+		"""
+		Raise CorruptFile if the iterable ends before we have a whole patch.
+		"""
+		# Complain if there's no header.
+		self.assertRaisesRegexp(CorruptFile, "truncated patch", list,
+				check_stream([])
+			)
+
+		# Complain if there's no patch hunks and there should be.
+		self.assertRaisesRegexp(CorruptFile, "truncated patch", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 1, ""),
+				])
+			)
+
+		# Complain if there's no source CRC32 opcode.
+		self.assertRaisesRegexp(CorruptFile, "truncated patch", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 1, ""),
+					(C.TARGETREAD, b'A'),
+				])
+			)
+
+		# Complain if there's no target CRC32 opcode.
+		self.assertRaisesRegexp(CorruptFile, "truncated patch", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 1, ""),
+					(C.TARGETREAD, b'A'),
+					(C.SOURCECRC32, 0),
+				])
+			)
+
 
 if __name__ == "__main__":
 	unittest.main()
