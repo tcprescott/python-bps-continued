@@ -660,6 +660,51 @@ class TestCheckStream(unittest.TestCase):
 				])
 			)
 
+	def testStateMachine(self):
+		"""
+		Raise CorruptFile if we get valid opcodes out of order.
+		"""
+		# Complain if we get a SourceCRC32 before any patch hunks.
+		self.assertRaisesRegexp(CorruptFile, "unknown opcode", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 1, ""),
+					(C.SOURCECRC32, 0),
+				])
+			)
+
+		# Complain if we get a TargetCRC32 before a SourceCRC32 opcode.
+		self.assertRaisesRegexp(CorruptFile, "expected sourcecrc32", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 1, ""),
+					(C.TARGETREAD, b'A'),
+					(C.TARGETCRC32, 0),
+				])
+			)
+
+		# Complain if we anything after SourceCRC32 besides TargetCRC32
+		self.assertRaisesRegexp(CorruptFile, "expected targetcrc32", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 1, ""),
+					(C.TARGETREAD, b'A'),
+					(C.SOURCECRC32, 0),
+					(C.TARGETREAD, b'A'),
+				])
+			)
+
+	def testTrailingGarbage(self):
+		"""
+		Raise CorruptFile if there's anything after TargetCRC32.
+		"""
+		self.assertRaisesRegexp(CorruptFile, "trailing garbage", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 1, ""),
+					(C.TARGETREAD, b'A'),
+					(C.SOURCECRC32, 0),
+					(C.TARGETCRC32, 0xD3D99E8B),
+					(C.TARGETREAD, b'A'),
+				])
+			)
+
 
 if __name__ == "__main__":
 	unittest.main()

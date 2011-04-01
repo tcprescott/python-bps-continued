@@ -235,7 +235,13 @@ def check_stream(iterable):
 	_check_crc32(targetcrc32, C.TARGETCRC32)
 	yield targetcrc32
 
-	# FIXME: Check that the iterable is now empty.
+	# Check that the iterable is now empty.
+	try:
+		garbage = next(iterable)
+		raise CorruptFile("trailing garbage in stream: {garbage!r}".format(
+				garbage=garbage))
+	except StopIteration:
+		pass
 
 
 def _expect_label(expected, actual):
