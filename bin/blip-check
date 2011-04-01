@@ -1,0 +1,14 @@
+#!/usr/bin/python3
+import sys
+from blip.io import read_blip, check_stream, CorruptFile
+
+iterable = check_stream(read_blip(open(sys.argv[1], 'rb')))
+
+i = 0
+try:
+	for i, item in enumerate(iterable):
+		pass
+
+except CorruptFile as e:
+	print("Problem with opcode {0} in the patch: {1!s}".format(i, e),
+			file=sys.stderr)
