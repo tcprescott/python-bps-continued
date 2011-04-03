@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import sys
-from blip.io import read_blip, check_stream, CorruptFile
+from blip.io import read_blip
+from blip.validate import check_stream, CorruptFile
 
 iterable = check_stream(read_blip(open(sys.argv[1], 'rb')))
 
