@@ -1,9 +1,15 @@
 #!/usr/bin/python3
 import sys
+import os
 from blip.apply import apply_to_files
 
 source = open(sys.argv[1], 'rb')
 target = open(sys.argv[2], 'wb')
 patch = open(sys.argv[3], 'rb')
 
-apply_to_files(patch, source, target)
+try:
+	apply_to_files(patch, source, target)
+except:
+	target.close()
+	os.unlink(sys.argv[2])
+	raise
