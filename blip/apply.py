@@ -23,7 +23,6 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 	targetCopyOffset = 0
 
 	for item in iterable:
-		length = 0
 
 		if item[0] == C.BLIP_MAGIC:
 			# Just the header, nothing for us to do here.
@@ -34,9 +33,13 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 			target_buf[writeOffset:writeOffset+length] = \
 					source_buf[writeOffset:writeOffset+length]
 
+			writeOffset += length
+
 		elif item[0] == C.TARGETREAD:
 			length = len(item[1])
 			target_buf[writeOffset:writeOffset+length] = item[1]
+
+			writeOffset += length
 
 		elif item[0] == C.SOURCECOPY:
 			length = item[1]
@@ -46,6 +49,7 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 					source_buf[sourceCopyOffset:sourceCopyOffset+length]
 
 			sourceCopyOffset += length
+			writeOffset += length
 
 		elif item[0] == C.TARGETCOPY:
 			length = item[1]
@@ -55,13 +59,9 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 			# we have to copy a byte at a time rather than just slicing
 			# target_buf.
 			for i in range(length):
-				b = target_buf[targetCopyOffset]
-				target_buf[writeOffset] = b
-
+				target_buf[writeOffset] = target_buf[targetCopyOffset]
 				writeOffset += 1
 				targetCopyOffset += 1
-
-			targetCopyOffset += length
 
 		elif item[0] == C.SOURCECRC32:
 			actual = crc32(source_buf)
@@ -81,8 +81,6 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 
 		else:
 			raise CorruptFile("unknown opcode: {0!r}".format(item))
-
-		writeOffset += length
 
 
 def apply_to_files(patch, source, target):

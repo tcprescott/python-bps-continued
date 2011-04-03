@@ -2,6 +2,7 @@
 import unittest
 from pkgutil import get_data
 from io import BytesIO
+from blip import constants as C
 from blip.apply import apply_to_bytearrays, apply_to_files
 from blip.io import read_blip
 from blip.validate import check_stream
@@ -76,6 +77,26 @@ class TestApplyToByteArrays(unittest.TestCase):
 		target = self._run_test("targetcopy", b'')
 
 		self.assertSequenceEqual(b'AAA', target)
+
+	def testPatchWithMultipleTargetCopies(self):
+		"""
+		Each TargetCopy updates writeOffset and targetCopyOffset correctly.
+		"""
+		iterable = check_stream([
+				(C.BLIP_MAGIC, 1, 5, ""),
+				(C.SOURCEREAD, 1),
+				(C.TARGETCOPY, 2, 0),
+				(C.TARGETCOPY, 2, 0),
+				(C.SOURCECRC32, 0xD3D99E8B),
+				(C.TARGETCRC32, 0x19F85109),
+			])
+		source = b'A'
+		target = bytearray(5)
+
+		apply_to_bytearrays(iterable, source, target)
+
+		self.assertSequenceEqual(b'AAAAA', target)
+
 
 
 class TestApplyToFiles(unittest.TestCase):
