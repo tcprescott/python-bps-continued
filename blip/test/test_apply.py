@@ -1,10 +1,11 @@
 #!/usr/bin/python3
 import unittest
+from pkgutil import get_data
 from io import BytesIO
-from blip.apply import apply_to_bytearrays
+from blip.apply import apply_to_bytearrays, apply_to_files
 from blip.io import read_blip
 from blip.validate import check_stream
-from blip.test.util import find_blip
+from blip.test.util import find_blip, find_data
 
 class TestApplyToByteArrays(unittest.TestCase):
 
@@ -75,6 +76,27 @@ class TestApplyToByteArrays(unittest.TestCase):
 		target = self._run_test("targetcopy", b'')
 
 		self.assertSequenceEqual(b'AAA', target)
+
+
+class TestApplyToFiles(unittest.TestCase):
+
+	def testPatchWithSourceCopy(self):
+		"""
+		We can process a patch with a SourceCopy opcode.
+		"""
+		patch = BytesIO(find_blip("sourcecopy"))
+		source = BytesIO(find_data("sourcecopy.source"))
+		expectedTarget = BytesIO(find_data("sourcecopy.target"))
+
+		actualTarget = BytesIO()
+		apply_to_files(patch, source, actualTarget)
+
+		self.assertSequenceEqual(
+				expectedTarget.getvalue(),
+				actualTarget.getvalue(),
+			)
+
+
 
 if __name__ == "__main__":
 	unittest.main()

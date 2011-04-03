@@ -83,3 +83,36 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 			raise CorruptFile("unknown opcode: {0!r}".format(item))
 
 		writeOffset += length
+
+
+def apply_to_files(patch, source, target):
+	"""
+	Applies the Blip patch to the source file, writing to the target file.
+
+	patch should be a file handle containing Blip patch data.
+
+	source should be a readable, binary file handle containing the source data
+	for the blip patch.
+
+	target should be a writable, binary file handle, which will contain the
+	result of applying the given patch to the given source data.
+	"""
+	iterable = check_stream(read_blip(patch))
+	sourceData = source.read()
+
+	header, sourceSize, targetSize, metadata = next(iterable)
+
+	if sourceSize != len(sourceData):
+		raise CorruptFile("Source file must be {sourceSize} bytes, but "
+				"{source!r} is {sourceDataLen} bytes.".format(
+					sourceSize=sourceSize, source=source,
+					sourceDataLen=len(sourceData)))
+
+	targetData = bytearray(targetSize)
+
+	apply_to_bytearrays(iterable, sourceData, targetData)
+
+	assert len(targetData) == targetSize, ("Should have written {0} bytes to "
+			"target, not {1}".format(targetSize, len(targetData)))
+
+	target.write(targetData)
