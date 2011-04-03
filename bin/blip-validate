@@ -15,3 +15,4 @@ except CorruptFile as e:
 	sys.stderr.flush()
 	print("Problem with opcode {0} in the patch: {1!s}".format(i, e),
 			file=sys.stderr)
+	sys.exit(1)
