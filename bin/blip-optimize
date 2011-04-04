@@ -1,0 +1,16 @@
+#!/usr/bin/python3
+import sys
+from blip import constants as C
+from blip.io import read_blip, write_blip
+from blip.validate import check_stream
+from blip.optimize import optimize
+
+patch = open(sys.argv[1], 'rb')
+
+iterable = optimize(read_blip(patch))
+
+try:
+	write_blip(iterable, sys.stdout.buffer)
+except Exception as e:
+	print(e, file=sys.stderr)
+	sys.exit(1)
