@@ -1,0 +1,17 @@
+#!/usr/bin/python3
+import sys
+from blip import constants as C
+from blip.diff import diff_bytearrays
+from blip.io import write_blip
+from blip.optimize import optimize
+from blip.apply import apply_to_bytearrays
+
+with open(sys.argv[1], 'rb') as source:
+	sourcedata = source.read()
+
+with open(sys.argv[2], 'rb') as target:
+	targetdata = target.read()
+
+iterable = diff_bytearrays(sourcedata, targetdata)
+
+write_blip(iterable, sys.stdout.buffer)

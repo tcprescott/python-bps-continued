@@ -1,0 +1,50 @@
+#!/usr/bin/python3
+import sys
+from blip import constants as C
+from blip.diff import diff_bytearrays
+from blip.io import write_blip
+from blip.optimize import optimize
+from blip.apply import apply_to_bytearrays
+
+with open(sys.argv[1], 'rb') as source:
+	sourcedata = source.read()
+
+with open(sys.argv[2], 'rb') as target:
+	targetdata = target.read()
+
+iterable = diff_bytearrays(sourcedata, targetdata)
+
+appliedTarget = bytearray(len(targetdata))
+
+def check_application_process(iterable):
+	writeOffset = 0
+
+	for index, item in enumerate(iterable):
+		if item[0] == C.SOURCEREAD:
+			length = item[1]
+		elif item[0] == C.TARGETREAD:
+			length = len(item[1])
+		elif item[0] == C.SOURCECOPY:
+			length = item[1]
+		elif item[0] == C.TARGETCOPY:
+			length = item[1]
+		else:
+			length = 0
+
+		expectedData = targetdata[writeOffset:writeOffset+length]
+
+		yield item
+
+		actualData = appliedTarget[writeOffset:writeOffset+length]
+
+		assert expectedData == actualData, ("Mismatch at item {0}, offset "
+				"{1}, item {2}: Expected {3!r}, got {4!r}".format(index,
+					writeOffset, item, expectedData, actualData))
+
+		writeOffset += length
+
+iterable = check_application_process(iterable)
+
+apply_to_bytearrays(iterable, sourcedata, appliedTarget)
+
+assert targetdata == appliedTarget
