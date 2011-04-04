@@ -11,6 +11,7 @@ from distutils.core import setup
 
 setup(
 		name="python-blip",
+		version="1",
 		description="A toolkit for working with Blip patch files",
 		author="Timothy Allen",
 		author_email="screwtape@froup.com",
