@@ -25,9 +25,7 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 
 	target_buf should be a bytearray object, or something impersonating one.
 	"""
-	writeOffset      = 0
-	sourceCopyOffset = 0
-	targetCopyOffset = 0
+	writeOffset = 0
 
 	for item in iterable:
 
@@ -50,25 +48,24 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 
 		elif item[0] == C.SOURCECOPY:
 			length = item[1]
-			sourceCopyOffset += item[2]
+			offset = item[2]
 
 			target_buf[writeOffset:writeOffset+length] = \
-					source_buf[sourceCopyOffset:sourceCopyOffset+length]
+					source_buf[offset:offset+length]
 
-			sourceCopyOffset += length
 			writeOffset += length
 
 		elif item[0] == C.TARGETCOPY:
 			length = item[1]
-			targetCopyOffset += item[2]
+			offset = item[2]
 
 			# Because TargetCopy can be used to implement RLE-type compression,
 			# we have to copy a byte at a time rather than just slicing
 			# target_buf.
 			for i in range(length):
-				target_buf[writeOffset] = target_buf[targetCopyOffset]
-				writeOffset += 1
-				targetCopyOffset += 1
+				target_buf[writeOffset+i] = target_buf[offset+i]
+
+			writeOffset += length
 
 		elif item[0] == C.SOURCECRC32:
 			actual = crc32(source_buf)

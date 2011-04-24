@@ -218,8 +218,7 @@ class TestCheckStream(unittest.TestCase):
 		"""
 		Raise CorruptFile if SourceCopy tries to copy from outside the file.
 		"""
-		# sourceRelativeOffset starts at 0, we should complain if the first
-		# SourceCopy has an offset < 0
+		# Source offset must not point before the beginning of the source.
 		self.assertRaisesRegexp(CorruptFile, "beginning of the source", list,
 				check_stream([
 					(C.BLIP_MAGIC, 1, 2, ""),
@@ -236,27 +235,22 @@ class TestCheckStream(unittest.TestCase):
 			]
 		self.assertSequenceEqual(original, list(check_stream(original)))
 
-		# After the first SourceCopy, sourceRelativeOffset has increased by the
-		# the SourceCopy's length, so we can use a negative offset.
-		original = [
-				(C.BLIP_MAGIC, 1, 2, ""),
-				(C.SOURCECOPY, 1, 0),
-				(C.SOURCECOPY, 1, -1),
-				(C.SOURCECRC32, 0),
-				(C.TARGETCRC32, 0),
-			]
-		self.assertSequenceEqual(original, list(check_stream(original)))
+		# Even after the first SourceCopy, we can't use a negative offset.
+		self.assertRaisesRegexp(CorruptFile, "beginning of the source", list,
+				check_stream([
+					(C.BLIP_MAGIC, 1, 2, ""),
+					(C.SOURCECOPY, 1, 0),
+					(C.SOURCECOPY, 1, -1),
+					(C.SOURCECRC32, 0),
+					(C.TARGETCRC32, 0),
+				])
+			)
 
-		# Likewise, sourceRelativeOffset + offset + length must be at most
-		# sourceSize.
+		# Likewise, offset + length must be at most sourceSize.
 		original = [
 				(C.BLIP_MAGIC, 2, 2, ""),
-				# sourceRelativeOffset is 0
-				(C.SOURCECOPY, 1, 0),
-				# sourceRelativeOffset is now 1.
-				# sourceRelativeOffset + offset + length = sourceSize, so this
-				# should be OK.
-				(C.SOURCECOPY, 1, 0),
+				# offset + length = sourceSize, so this should be OK.
+				(C.SOURCECOPY, 2, 0),
 				(C.SOURCECRC32, 0),
 				(C.TARGETCRC32, 0),
 			]
@@ -267,8 +261,7 @@ class TestCheckStream(unittest.TestCase):
 		self.assertRaisesRegexp(CorruptFile, "end of the source", list,
 				check_stream([
 					(C.BLIP_MAGIC, 2, 3, ""),
-					(C.SOURCECOPY, 1, 0),
-					(C.SOURCECOPY, 1, 1),
+					(C.SOURCECOPY, 2, 1),
 				])
 			)
 
@@ -324,8 +317,7 @@ class TestCheckStream(unittest.TestCase):
 		"""
 		Raise CorruptFile if TargetCopy tries to copy from outside the file.
 		"""
-		# targetRelativeOffset starts at 0, we should complain if the first
-		# TargetCopy has an offset < 0
+		# We should complain if the first TargetCopy has an offset < 0
 		self.assertRaisesRegexp(CorruptFile, "beginning of the target", list,
 				check_stream([
 					(C.BLIP_MAGIC, 0, 2, ""),
@@ -344,25 +336,22 @@ class TestCheckStream(unittest.TestCase):
 			]
 		self.assertSequenceEqual(original, list(check_stream(original)))
 
-		# After the first TargetCopy, targetRelativeOffset has increased by the
-		# copy's length, so we can use a negative offset.
-		original = [
-				(C.BLIP_MAGIC, 0, 3, ""),
-				(C.TARGETREAD, b'A'),
-				(C.TARGETCOPY, 1, 0),
-				(C.TARGETCOPY, 1, -1),
-				(C.SOURCECRC32, 0),
-				(C.TARGETCRC32, 0),
-			]
-		self.assertSequenceEqual(original, list(check_stream(original)))
+		# Even after the first TargetCopy, we can't use a negative offset.
+		self.assertRaisesRegexp(CorruptFile, "beginning of the target", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 3, ""),
+					(C.TARGETREAD, b'A'),
+					(C.TARGETCOPY, 1, 0),
+					(C.TARGETCOPY, 1, -1),
+					(C.SOURCECRC32, 0),
+					(C.TARGETCRC32, 0),
+				])
+			)
 
-		# Likewise, targetRelativeOffset + offset must be less than
-		# targetWriteOffset.
+		# Likewise, offset must be less than targetWriteOffset.
 		original = [
-				(C.BLIP_MAGIC, 0, 3, ""),
+				(C.BLIP_MAGIC, 0, 2, ""),
 				(C.TARGETREAD, b'A'),
-				(C.TARGETCOPY, 1, 0),
-				# Now targetRelativeOffset = 1 and targetWriteOffset = 2
 				(C.TARGETCOPY, 1, 0),
 				(C.SOURCECRC32, 0),
 				(C.TARGETCRC32, 0),
@@ -375,7 +364,6 @@ class TestCheckStream(unittest.TestCase):
 				check_stream([
 					(C.BLIP_MAGIC, 0, 5, ""),
 					(C.TARGETREAD, b'A'),
-					# Now targetRelativeOffset = 1 and targetWriteOffset = 1
 					(C.TARGETCOPY, 1, 1),
 				])
 			)

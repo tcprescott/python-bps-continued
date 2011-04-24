@@ -113,7 +113,7 @@ class TestIO(unittest.TestCase):
 				# We copy the second byte in the source file.
 				(C.SOURCECOPY, 1, 1),
 				# We copy the first byte in the source file.
-				(C.SOURCECOPY, 1, -2),
+				(C.SOURCECOPY, 1, 0),
 				# This CRC32 represents b'AB'
 				(C.SOURCECRC32, 0x30694C07),
 				# This CRC32 represents b'BA'
@@ -125,16 +125,19 @@ class TestIO(unittest.TestCase):
 		We can process a patch with a TargetCopy opcode.
 		"""
 		self._runtests("targetcopy", [
-				(C.BLIP_MAGIC, 0, 3, ""),
+				(C.BLIP_MAGIC, 0, 4, ""),
 				# Add a TargetRead opcode, so TargetCopy has something to copy.
 				(C.TARGETREAD, b'A'),
 				# Add a TargetCopy opcode that does the RLE trick of reading
 				# more data than is currently written.
 				(C.TARGETCOPY, 2, 0),
+				# Add a TargetCopy that seeks to an earlier offset, so we make
+				# sure negative offsets are handled correctly.
+				(C.TARGETCOPY, 1, 0),
 				# This CRC32 represents b''
 				(C.SOURCECRC32, 0x00000000),
-				# This CRC32 represents b'AAA'
-				(C.TARGETCRC32, 0x66A031A7),
+				# This CRC32 represents b'AAAA'
+				(C.TARGETCRC32, 0x9B0D08F1),
 			])
 
 

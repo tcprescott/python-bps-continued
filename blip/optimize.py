@@ -24,10 +24,9 @@ def optimize(iterable):
 
 	for item in iterable:
 
-		# FIXME: Another idea for optimizing: if we keep track of
-		# targetWriteOffset and sourceRelativeOffset in here, we convert
-		# SourceCopy operations with an appropriate offset into SourceRead
-		# operations, which should shave off a few bytes.
+		# FIXME: Another idea for optimizing: convert SourceCopy operations
+		# with an appropriate offset into SourceRead operations, which should
+		# shave off a few bytes.
 
 		if lastItem[0] == C.SOURCEREAD and item[0] == C.SOURCEREAD:
 			# We can merge consecutive SourceRead operations.
@@ -40,7 +39,7 @@ def optimize(iterable):
 			continue
 
 		elif (lastItem[0] == C.SOURCECOPY and item[0] == C.SOURCECOPY and
-				item[2] == 0):
+				lastItem[1] + lastItem[2] == item[2]):
 			# We can merge consecutive SourceCopy operations, as long as the
 			# following ones have a relative offset of 0 from the end of the
 			# previous one.
@@ -48,7 +47,7 @@ def optimize(iterable):
 			continue
 
 		elif (lastItem[0] == C.TARGETCOPY and item[0] == C.TARGETCOPY and
-				item[2] == 0):
+				lastItem[1] + lastItem[2] == item[2]):
 			# We can merge consecutive TargetCopy operations, as long as the
 			# following ones have a relative offset of 0 from the end of the
 			# previous one.

@@ -90,12 +90,12 @@ class TestOptimize(unittest.TestCase):
 		original = [
 				(C.BLIP_MAGIC, 3, 3, ""),
 				(C.SOURCECOPY, 1, 0),
-				# This SourceCopy has an offset of 0, so it can be merged with
-				# the previous one.
+				# This SourceCopy resumes where the previous one left off, so
+				# it can be merged with the previous one.
+				(C.SOURCECOPY, 1, 1),
+				# This SourceCopy copies data from somewhere else in the file,
+				# so it can't be merged.
 				(C.SOURCECOPY, 1, 0),
-				# This SourceCopy has an offset pointing somewhere else in the
-				# file, so it can't be merged.
-				(C.SOURCECOPY, 1, -2),
 				(C.SOURCECRC32, 0x66A031A7),
 				(C.TARGETCRC32, 0x66A031A7),
 			]
@@ -103,7 +103,7 @@ class TestOptimize(unittest.TestCase):
 		expected = [
 				(C.BLIP_MAGIC, 3, 3, ""),
 				(C.SOURCECOPY, 2, 0),
-				(C.SOURCECOPY, 1, -2),
+				(C.SOURCECOPY, 1, 0),
 				(C.SOURCECRC32, 0x66A031A7),
 				(C.TARGETCRC32, 0x66A031A7),
 			]
@@ -120,12 +120,12 @@ class TestOptimize(unittest.TestCase):
 				(C.BLIP_MAGIC, 0, 4, ""),
 				(C.TARGETREAD, b'A'),
 				(C.TARGETCOPY, 1, 0),
-				# This SourceCopy has an offset of 0, so it can be merged with
-				# the previous one.
+				# This TargetCopy resumes where the previous one left off, so
+				# it can be merged with the previous one.
+				(C.TARGETCOPY, 1, 1),
+				# This TargetCopy copies data from somewhere else in the file,
+				# so it can't be merged.
 				(C.TARGETCOPY, 1, 0),
-				# This SourceCopy has an offset pointing somewhere else in the
-				# file, so it can't be merged.
-				(C.TARGETCOPY, 1, -2),
 				(C.SOURCECRC32, 0x00000000),
 				(C.TARGETCRC32, 0x66A031A7),
 			]
@@ -134,7 +134,7 @@ class TestOptimize(unittest.TestCase):
 				(C.BLIP_MAGIC, 0, 4, ""),
 				(C.TARGETREAD, b'A'),
 				(C.TARGETCOPY, 2, 0),
-				(C.TARGETCOPY, 1, -2),
+				(C.TARGETCOPY, 1, 0),
 				(C.SOURCECRC32, 0x00000000),
 				(C.TARGETCRC32, 0x66A031A7),
 			]

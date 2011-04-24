@@ -1,11 +1,12 @@
 blipasm
 sourcesize: 0
-targetsize: 3
+targetsize: 4
 metadata:
 .
 targetread:
 41
 .
-targetcopy: 2 +0
+targetcopy: 2 0
+targetcopy: 1 0
 sourcecrc32: 00000000
-targetcrc32: 66A031A7
+targetcrc32: 9B0D08F1

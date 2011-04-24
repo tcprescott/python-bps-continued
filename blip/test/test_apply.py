@@ -84,7 +84,7 @@ class TestApplyToByteArrays(unittest.TestCase):
 		"""
 		target = self._run_test("targetcopy", b'')
 
-		self.assertSequenceEqual(b'AAA', target)
+		self.assertSequenceEqual(b'AAAA', target)
 
 	def testPatchWithMultipleTargetCopies(self):
 		"""

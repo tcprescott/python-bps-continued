@@ -59,8 +59,10 @@ def read_blip(in_buf):
 
 	yield (magic, sourcesize, targetsize, metadata)
 
-	targetoffset = 0
-	while targetoffset < targetsize:
+	targetWriteOffset = 0
+	sourceRelativeOffset = 0
+	targetRelativeOffset = 0
+	while targetWriteOffset < targetsize:
 		value = util.read_var_int(in_buf)
 		opcode = value & C.OPCODEMASK
 		length = (value >> C.OPCODESHIFT) + 1
@@ -76,21 +78,24 @@ def read_blip(in_buf):
 			offset = raw_offset >> 1
 			if raw_offset & 1:
 				offset = -offset
-			yield (C.SOURCECOPY, length, offset)
+			sourceRelativeOffset += offset
+			yield (C.SOURCECOPY, length, sourceRelativeOffset)
+			sourceRelativeOffset += length
 
 		elif opcode == C.OP_TARGETCOPY:
 			raw_offset = util.read_var_int(in_buf)
 			offset = raw_offset >> 1
 			if raw_offset & 1:
 				offset = -offset
-			yield (C.TARGETCOPY, length, offset)
-
+			targetRelativeOffset += offset
+			yield (C.TARGETCOPY, length, targetRelativeOffset)
+			targetRelativeOffset += length
 
 		else:
 			raise CorruptFile("Unknown opcode: {opcode:02b}".format(
 				opcode=opcode))
 
-		targetoffset += length
+		targetWriteOffset += length
 
 	# footer
 	yield (C.SOURCECRC32, unpack("I", in_buf.read(4))[0])
@@ -131,6 +136,9 @@ def write_blip(iterable, out_buf):
 	util.write_var_int(len(metadata), out_buf)
 	out_buf.write(metadata)
 
+	sourceRelativeOffset = 0
+	targetRelativeOffset = 0
+
 	for item in iterable:
 		if item[0] == C.SOURCEREAD:
 			util.write_var_int(
@@ -150,20 +158,24 @@ def write_blip(iterable, out_buf):
 					((item[1] - 1) << C.OPCODESHIFT) | C.OP_SOURCECOPY,
 					out_buf,
 				)
+			relOffset = item[2] - sourceRelativeOffset
 			util.write_var_int(
-					(abs(item[2]) << 1) | (item[2] < 0),
+					(abs(relOffset) << 1) | (relOffset < 0),
 					out_buf,
 				)
+			sourceRelativeOffset += relOffset + item[1]
 
 		elif item[0] == C.TARGETCOPY:
 			util.write_var_int(
 					((item[1] - 1) << C.OPCODESHIFT) | C.OP_TARGETCOPY,
 					out_buf,
 				)
+			relOffset = item[2] - targetRelativeOffset
 			util.write_var_int(
-					(abs(item[2]) << 1) | (item[2] < 0),
+					(abs(relOffset) << 1) | (relOffset < 0),
 					out_buf,
 				)
+			targetRelativeOffset += relOffset + item[1]
 
 		elif item[0] == C.SOURCECRC32:
 			_, value = item
@@ -208,25 +220,25 @@ def read_blip_asm(in_buf):
 
 	yield (C.BLIP_MAGIC, sourcesize, targetsize, metadata)
 
-	targetoffset = 0
-	while targetoffset < targetsize:
+	targetWriteOffset = 0
+	while targetWriteOffset < targetsize:
 		label, value = in_buf.readline().split(":")
 		if label == C.SOURCEREAD:
 			length = int(value)
 			yield (label, length)
-			targetoffset += length
+			targetWriteOffset += length
 
 		elif label == C.TARGETREAD:
 			data = _read_multiline_text(in_buf)
 			data = NON_HEX_DIGIT_RE.sub("", data)
 			data = a2b_hex(data)
 			yield (label, data)
-			targetoffset += len(data)
+			targetWriteOffset += len(data)
 
 		elif label in (C.SOURCECOPY, C.TARGETCOPY):
 			length, offset = [int(x) for x in value.split()]
 			yield (label, length, offset)
-			targetoffset += length
+			targetWriteOffset += length
 
 		else:
 			raise CorruptFile("Unknown label: {label!r}".format(label=label))
@@ -288,10 +300,10 @@ def write_blip_asm(iterable, out_buf):
 			out_buf.write("\n.\n")
 
 		elif item[0] == C.SOURCECOPY:
-			out_buf.write("{0}: {1} {2:+d}\n".format(*item))
+			out_buf.write("{0}: {1} {2}\n".format(*item))
 
 		elif item[0] == C.TARGETCOPY:
-			out_buf.write("{0}: {1} {2:+d}\n".format(*item))
+			out_buf.write("{0}: {1} {2}\n".format(*item))
 
 		elif item[0] == C.SOURCECRC32:
 			out_buf.write("{0}: {1:08X}\n".format(*item))

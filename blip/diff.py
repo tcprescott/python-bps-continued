@@ -47,8 +47,8 @@ def diff_bytearrays(source, target, metadata=""):
 		bisect.insort(offsetlist, offset)
 
 	targetWriteOffset = 0
-	sourceRelativeOffset = 0
-	targetRelativeOffset = 0
+	lastSourceCopyOffset = 0
+	lastTargetCopyOffset = 0
 
 	targetmap = {}
 	for block, offset in iter_blocks(target):
@@ -68,24 +68,22 @@ def diff_bytearrays(source, target, metadata=""):
 			else:
 				# Otherwise, pick the instance closest to targetRelativeOffset
 				# so that the operation will have the smallest encoding.
-				index = bisect.bisect(offsetlist, sourceRelativeOffset)
+				index = bisect.bisect(offsetlist, lastTargetCopyOffset)
 				index = min(index, len(offsetlist)-1)
 
-			yield (C.TARGETCOPY, len(block),
-					(offsetlist[index] - targetRelativeOffset))
+			yield (C.TARGETCOPY, len(block), offsetlist[index])
 
-			targetRelativeOffset = offsetlist[index] + len(block)
+			lastTargetCopyOffset = offsetlist[index] + len(block)
 
 		elif block in sourcemap:
 			offsetlist = sourcemap[block]
 
-			index = bisect.bisect(offsetlist, sourceRelativeOffset)
+			index = bisect.bisect(offsetlist, lastSourceCopyOffset)
 			index = min(index, len(offsetlist)-1)
 
-			yield (C.SOURCECOPY, len(block),
-					(offsetlist[index] - sourceRelativeOffset))
+			yield (C.SOURCECOPY, len(block), offsetlist[index])
 
-			sourceRelativeOffset = offsetlist[index] + len(block)
+			lastSourceCopyOffset = offsetlist[index] + len(block)
 
 		else:
 			yield (C.TARGETREAD, block)
