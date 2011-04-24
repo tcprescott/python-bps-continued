@@ -561,6 +561,24 @@ class TestCheckStream(unittest.TestCase):
 				])
 			)
 
+		# If we get a completely random operation rather than a CRC32, make
+		# sure we complain about the opcode, not the number of arguments (or
+		# whatever.
+		self.assertRaisesRegexp(CorruptFile, "expected sourcecrc32", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 0, ""),
+					(C.TARGETREAD, b'A'),
+				])
+			)
+		self.assertRaisesRegexp(CorruptFile, "expected sourcecrc32", list,
+				check_stream([
+					(C.BLIP_MAGIC, 0, 1, ""),
+					(C.TARGETREAD, b'A'),
+					(C.TARGETCOPY, 0, 1),
+				])
+			)
+
+
 	def testTrailingGarbage(self):
 		"""
 		Raise CorruptFile if there's anything after TargetCRC32.

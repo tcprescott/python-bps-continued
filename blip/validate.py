@@ -62,12 +62,12 @@ def _check_crc32(item, expectedOpcode):
 
 	Check the CRC32 parameter of this item.
 	"""
-	_check_param_count(item, 1)
-
 	if item[0] != expectedOpcode:
 		raise CorruptFile("bad hunk: expected {expected}, not opcode "
 				"{opcode}: {item}".format(expected=expectedOpcode,
 					opcode=item[0], item=item))
+
+	_check_param_count(item, 1)
 
 	if not isinstance(item[1], int):
 		raise CorruptFile("bad crc32: {crc32!r} is not a valid "
