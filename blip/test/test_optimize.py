@@ -88,7 +88,11 @@ class TestOptimize(unittest.TestCase):
 		A SourceCopy is merged if its offset is zero.
 		"""
 		original = [
-				(C.BLIP_MAGIC, 3, 3, ""),
+				(C.BLIP_MAGIC, 3, 4, ""),
+				# Make sure the SourceCopy offset never matches the
+				# targetWriteOffset, so that our SourceCopys won't be converted
+				# to SourceReads.
+				(C.TARGETREAD, b'A'),
 				(C.SOURCECOPY, 1, 0),
 				# This SourceCopy resumes where the previous one left off, so
 				# it can be merged with the previous one.
@@ -101,7 +105,8 @@ class TestOptimize(unittest.TestCase):
 			]
 
 		expected = [
-				(C.BLIP_MAGIC, 3, 3, ""),
+				(C.BLIP_MAGIC, 3, 4, ""),
+				(C.TARGETREAD, b'A'),
 				(C.SOURCECOPY, 2, 0),
 				(C.SOURCECOPY, 1, 0),
 				(C.SOURCECRC32, 0x66A031A7),
@@ -136,6 +141,37 @@ class TestOptimize(unittest.TestCase):
 				(C.TARGETCOPY, 2, 0),
 				(C.TARGETCOPY, 1, 0),
 				(C.SOURCECRC32, 0x00000000),
+				(C.TARGETCRC32, 0x66A031A7),
+			]
+
+		actual = list(test_optimize(original))
+
+		self.assertSequenceEqual(expected, actual)
+
+	def testConvertSourceCopyToSourceRead(self):
+		"""
+		A SourceCopy at the targetWriteOffset can be a SourceRead.
+		"""
+		original = [
+				(C.BLIP_MAGIC, 3, 3, ""),
+				# This SourceCopy can be coverted to a SourceRead, because it's
+				# reading at the targetWriteOffset.
+				(C.SOURCECOPY, 1, 0),
+				# This SourceCopy can't be converted, since it's reading from
+				# a different offset.
+				(C.SOURCECOPY, 1, 0),
+				# This one can be converted.
+				(C.SOURCECOPY, 1, 2),
+				(C.SOURCECRC32, 0x66A031A7),
+				(C.TARGETCRC32, 0x66A031A7),
+			]
+
+		expected = [
+				(C.BLIP_MAGIC, 3, 3, ""),
+				(C.SOURCEREAD, 1),
+				(C.SOURCECOPY, 1, 0),
+				(C.SOURCEREAD, 1),
+				(C.SOURCECRC32, 0x66A031A7),
 				(C.TARGETCRC32, 0x66A031A7),
 			]
 

@@ -11,6 +11,17 @@ Tools for optimizing blip patches.
 from blip import constants as C
 from blip.validate import check_stream
 
+def _itemlen(item):
+	"""
+	Returns the number of bytes written by a patch operation.
+	"""
+	if item[0] in {C.SOURCEREAD, C.SOURCECOPY, C.TARGETCOPY}:
+		return item[1]
+	elif item[0] == C.TARGETREAD:
+		return len(item[1])
+	else:
+		return None
+
 def optimize(iterable):
 	"""
 	Yields a simplified sequence of patch operations from iterable.
@@ -22,11 +33,13 @@ def optimize(iterable):
 
 	lastItem = next(iterable)
 
-	for item in iterable:
+	if lastItem[0] == C.SOURCECOPY and lastItem[2] == 0:
+		# SourceCopy is copying from the start of the file, so it might as well
+		# be a SourceRead.
+		lastItem = (C.SOURCEREAD, lastItem[1])
 
-		# FIXME: Another idea for optimizing: convert SourceCopy operations
-		# with an appropriate offset into SourceRead operations, which should
-		# shave off a few bytes.
+	targetWriteOffset = 0
+	for item in iterable:
 
 		if lastItem[0] == C.SOURCEREAD and item[0] == C.SOURCEREAD:
 			# We can merge consecutive SourceRead operations.
@@ -54,7 +67,15 @@ def optimize(iterable):
 			lastItem = (C.TARGETCOPY, lastItem[1] + item[1], lastItem[2])
 			continue
 
+		if lastItem[0] == C.SOURCECOPY and lastItem[2] == targetWriteOffset:
+			lastItem = (C.SOURCEREAD, lastItem[1])
+
 		yield lastItem
+
+		if lastItem[0] in {C.SOURCEREAD, C.TARGETREAD, C.SOURCECOPY,
+				C.TARGETCOPY}:
+			targetWriteOffset += _itemlen(lastItem)
+
 		lastItem = item
 
 	yield lastItem
