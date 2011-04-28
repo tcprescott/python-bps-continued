@@ -13,6 +13,7 @@ from blip.diff import diff_bytearrays
 from blip.io import write_blip
 from blip.optimize import optimize
 from blip.apply import apply_to_bytearrays
+from blip.util import op_size
 
 with open(sys.argv[1], 'rb') as source:
 	sourcedata = source.read()
@@ -28,15 +29,8 @@ def check_application_process(iterable):
 	writeOffset = 0
 
 	for index, item in enumerate(iterable):
-		if item[0] == C.SOURCEREAD:
-			length = item[1]
-		elif item[0] == C.TARGETREAD:
-			length = len(item[1])
-		elif item[0] == C.SOURCECOPY:
-			length = item[1]
-		elif item[0] == C.TARGETCOPY:
-			length = item[1]
-		else:
+		length = op_size(item)
+		if not length:
 			length = 0
 
 		expectedData = targetdata[writeOffset:writeOffset+length]

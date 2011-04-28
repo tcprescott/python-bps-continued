@@ -10,17 +10,7 @@ Tools for optimizing blip patches.
 """
 from blip import constants as C
 from blip.validate import check_stream
-
-def _itemlen(item):
-	"""
-	Returns the number of bytes written by a patch operation.
-	"""
-	if item[0] in {C.SOURCEREAD, C.SOURCECOPY, C.TARGETCOPY}:
-		return item[1]
-	elif item[0] == C.TARGETREAD:
-		return len(item[1])
-	else:
-		return None
+from blip.util import op_size
 
 def optimize(iterable):
 	"""
@@ -74,7 +64,7 @@ def optimize(iterable):
 
 		if lastItem[0] in {C.SOURCEREAD, C.TARGETREAD, C.SOURCECOPY,
 				C.TARGETCOPY}:
-			targetWriteOffset += _itemlen(lastItem)
+			targetWriteOffset += op_size(lastItem)
 
 		lastItem = item
 

@@ -12,6 +12,7 @@ from zlib import crc32
 from blip import constants as C
 from blip.validate import check_stream, CorruptFile
 from blip.io import read_blip
+from blip.util import op_size
 
 
 def apply_to_bytearrays(iterable, source_buf, target_buf):
@@ -28,35 +29,26 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 	writeOffset = 0
 
 	for item in iterable:
+		length = op_size(item)
 
 		if item[0] == C.BLIP_MAGIC:
 			# Just the header, nothing for us to do here.
 			pass
 
 		elif item[0] == C.SOURCEREAD:
-			length = item[1]
 			target_buf[writeOffset:writeOffset+length] = \
 					source_buf[writeOffset:writeOffset+length]
 
-			writeOffset += length
-
 		elif item[0] == C.TARGETREAD:
-			length = len(item[1])
 			target_buf[writeOffset:writeOffset+length] = item[1]
 
-			writeOffset += length
-
 		elif item[0] == C.SOURCECOPY:
-			length = item[1]
 			offset = item[2]
 
 			target_buf[writeOffset:writeOffset+length] = \
 					source_buf[offset:offset+length]
 
-			writeOffset += length
-
 		elif item[0] == C.TARGETCOPY:
-			length = item[1]
 			offset = item[2]
 
 			# Because TargetCopy can be used to implement RLE-type compression,
@@ -64,8 +56,6 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 			# target_buf.
 			for i in range(length):
 				target_buf[writeOffset+i] = target_buf[offset+i]
-
-			writeOffset += length
 
 		elif item[0] == C.SOURCECRC32:
 			actual = crc32(source_buf)
@@ -85,6 +75,9 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 
 		else:
 			raise CorruptFile("unknown opcode: {0!r}".format(item))
+
+		if length:
+			writeOffset += length
 
 
 def apply_to_files(patch, source, target):
