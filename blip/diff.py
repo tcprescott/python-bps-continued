@@ -14,6 +14,19 @@ from zlib import crc32
 from blip import constants as C
 
 
+class BlockMap(dict):
+
+	def add_block(self, block, offset):
+		offsetlist = self.setdefault(block, [])
+		bisect.insort(offsetlist, offset)
+
+	def nearest_instance(self, block, offset):
+		offsetlist = self[block]
+		index = bisect.bisect(offsetlist, offset)
+		index = min(index, len(offsetlist)-1)
+		return offsetlist[index]
+
+
 def iter_blocks(data, blocksize=64, delim=b'\n'):
 	offset = 0
 
@@ -41,16 +54,15 @@ def diff_bytearrays(source, target, metadata=""):
 	"""
 	yield (C.BLIP_MAGIC, len(source), len(target), metadata)
 
-	sourcemap = {}
+	sourcemap = BlockMap()
 	for block, offset in iter_blocks(source):
-		offsetlist = sourcemap.setdefault(block, [])
-		bisect.insort(offsetlist, offset)
+		sourcemap.add_block(block, offset)
 
 	targetWriteOffset = 0
 	lastSourceCopyOffset = 0
 	lastTargetCopyOffset = 0
 
-	targetmap = {}
+	targetmap = BlockMap()
 	for block, offset in iter_blocks(target):
 		if block in sourcemap and offset in sourcemap[block]:
 			yield (C.SOURCEREAD, len(block))
@@ -58,40 +70,34 @@ def diff_bytearrays(source, target, metadata=""):
 		elif block in targetmap:
 			# We prefer blocks in targetmap to blocks in sourcemap, because
 			# blocks in targetmap have more potential for RLE.
-			offsetlist = targetmap[block]
 
-			if offsetlist[-1] == (targetWriteOffset - len(block)):
+			lastoffset = targetmap[block][-1]
+			if lastoffset == (targetWriteOffset - len(block)):
 				# If the most recent instance of this block was the very last
 				# thing written, use it. That means the two TargetCopy
 				# operations can be combined.
-				index = -1
+				srcoffset = lastoffset
 			else:
 				# Otherwise, pick the instance closest to targetRelativeOffset
 				# so that the operation will have the smallest encoding.
-				index = bisect.bisect(offsetlist, lastTargetCopyOffset)
-				index = min(index, len(offsetlist)-1)
+				srcoffset = targetmap.nearest_instance(block,
+						lastTargetCopyOffset)
 
-			yield (C.TARGETCOPY, len(block), offsetlist[index])
+			yield (C.TARGETCOPY, len(block), srcoffset)
 
-			lastTargetCopyOffset = offsetlist[index] + len(block)
+			lastTargetCopyOffset = srcoffset + len(block)
 
 		elif block in sourcemap:
-			offsetlist = sourcemap[block]
+			srcoffset = sourcemap.nearest_instance(block, lastSourceCopyOffset)
+			yield (C.SOURCECOPY, len(block), srcoffset)
 
-			index = bisect.bisect(offsetlist, lastSourceCopyOffset)
-			index = min(index, len(offsetlist)-1)
-
-			yield (C.SOURCECOPY, len(block), offsetlist[index])
-
-			lastSourceCopyOffset = offsetlist[index] + len(block)
+			lastSourceCopyOffset = srcoffset + len(block)
 
 		else:
 			yield (C.TARGETREAD, block)
 
 		targetWriteOffset += len(block)
-
-		offsetlist = targetmap.setdefault(block, [])
-		bisect.insort(offsetlist, offset)
+		targetmap.add_block(block, offset)
 
 	yield (C.SOURCECRC32, crc32(source))
 	yield (C.TARGETCRC32, crc32(target))
