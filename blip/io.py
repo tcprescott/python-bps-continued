@@ -231,6 +231,7 @@ def read_blip_asm(in_buf):
 		elif label == C.TARGETREAD:
 			data = _read_multiline_text(in_buf)
 			data = NON_HEX_DIGIT_RE.sub("", data)
+			data = data.encode('ascii')
 			data = a2b_hex(data)
 			yield (label, data)
 			targetWriteOffset += len(data)
