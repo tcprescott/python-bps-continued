@@ -100,9 +100,9 @@ def read_var_int(handle):
 	return res
 
 
-def write_var_int(number, handle):
+def encode_var_int(number):
 	"""
-	Writes a variable-length integer to the given file handle.
+	Returns a bytearray encoding the given number.
 	"""
 	buf = bytearray()
 	shift = 1
@@ -120,7 +120,14 @@ def write_var_int(number, handle):
 		number >>= 7
 		shift += 7
 
-	handle.write(buf)
+	return buf
+
+
+def write_var_int(number, handle):
+	"""
+	Writes a variable-length integer to the given file handle.
+	"""
+	handle.write(encode_var_int(number))
 
 
 def op_size(op):

@@ -62,6 +62,17 @@ class TestWriteVarInt(unittest.TestCase):
 			self.assertEqual(buf.getvalue(), encoded)
 
 
+class TestEncodeVarInt(unittest.TestCase):
+
+	def testEncoding(self):
+		"""
+		Output matches our examples.
+		"""
+		for encoded, decoded in EXAMPLE_VAR_INTS.items():
+			buf = util.encode_var_int(decoded)
+			self.assertEqual(buf, encoded)
+
+
 class TestCRCIOWrapper(unittest.TestCase):
 
 	def testEmptyStream(self):
