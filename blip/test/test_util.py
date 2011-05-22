@@ -154,5 +154,39 @@ class TestCRCIOWrapper(unittest.TestCase):
 		self.assertRaises(io.UnsupportedOperation, stream.truncate, 5)
 
 
+class TestBlockMap(unittest.TestCase):
+
+	def test_add_block(self):
+		"""
+		BlockMap.add_block() stores offsets in a sorted list.
+		"""
+		bm = util.BlockMap()
+
+		bm.add_block(b'ABC', 10)
+		bm.add_block(b'ABC', 30)
+		bm.add_block(b'ABC', 20)
+
+		self.assertEqual(bm[b'ABC'], [10, 20, 30])
+
+	def test_nearest_instance(self):
+		"""
+		BlockMap.nearest_instance() finds the instance nearest to an offset.
+		"""
+		bm = util.BlockMap()
+
+		bm.add_block(b'ABC', 10)
+		bm.add_block(b'ABC', 20)
+
+		self.assertEqual(bm.nearest_instance(b'ABC',  9), 10)
+		self.assertEqual(bm.nearest_instance(b'ABC', 10), 10)
+		self.assertEqual(bm.nearest_instance(b'ABC', 11), 10)
+		self.assertEqual(bm.nearest_instance(b'ABC', 15), 10)
+		self.assertEqual(bm.nearest_instance(b'ABC', 16), 20)
+		self.assertEqual(bm.nearest_instance(b'ABC', 19), 20)
+		self.assertEqual(bm.nearest_instance(b'ABC', 20), 20)
+		self.assertEqual(bm.nearest_instance(b'ABC', 21), 20)
+
+
+
 if __name__ == "__main__":
 	unittest.main()

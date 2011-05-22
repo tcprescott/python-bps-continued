@@ -10,6 +10,7 @@ Utility methods used when reading Blip patches.
 """
 # For copyright and licensing information, see the file COPYING.
 import io
+import bisect
 from zlib import crc32
 from blip import constants as C
 
@@ -128,4 +129,16 @@ def write_var_int(number, handle):
 	Writes a variable-length integer to the given file handle.
 	"""
 	handle.write(encode_var_int(number))
+
+
+class BlockMap(dict):
+
+	def add_block(self, block, offset):
+		offsetlist = self.setdefault(block, [])
+		bisect.insort(offsetlist, offset)
+
+	def nearest_instance(self, block, offset):
+		offsetlist = self[block][:]
+		offsetlist.sort(key=lambda x: abs(offset - x))
+		return offsetlist[0]
 
