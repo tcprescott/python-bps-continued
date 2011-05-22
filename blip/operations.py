@@ -66,6 +66,15 @@ class Header(BaseOperation):
 				"targetSize={1.targetSize}>".format(_classname(self), self)
 			)
 
+	def __eq__(self, other):
+		if not isinstance(other, type(self)): return False
+
+		if self.sourceSize != other.sourceSize: return False
+		if self.targetSize != other.targetSize: return False
+		if self.metadata   != other.metadata:   return False
+
+		return True
+
 	def extend(self, other):
 		raise TypeError(
 				"Cannot extend a header operation with {0!r}".format(other)
@@ -97,6 +106,13 @@ class SourceRead(BaseOperation):
 		return "<{0} bytespan={1.bytespan}>".format(
 				_classname(self), self)
 
+	def __eq__(self, other):
+		if not isinstance(other, type(self)): return False
+
+		if self.bytespan != other.bytespan: return False
+
+		return True
+
 	def extend(self, other):
 		if not isinstance(other, type(self)):
 			raise TypeError(
@@ -124,6 +140,13 @@ class TargetRead(BaseOperation):
 		return "<{0} bytespan={1.bytespan}>".format(
 				_classname(self), self
 			)
+
+	def __eq__(self, other):
+		if not isinstance(other, type(self)): return False
+
+		if self.payload != other.payload: return False
+
+		return True
 
 	@property
 	def payload(self):
@@ -175,6 +198,14 @@ class _BaseCopy(BaseOperation):
 		return "<{0} bytespan={1.bytespan} offset={1.offset}>".format(
 				_classname(self), self
 			)
+
+	def __eq__(self, other):
+		if not isinstance(other, type(self)): return False
+
+		if self.bytespan != other.bytespan: return False
+		if self.offset   != other.offset:   return False
+
+		return True
 
 	def extend(self, other):
 		if not isinstance(other, type(self)):
@@ -242,6 +273,13 @@ class _BaseCRC32(BaseOperation):
 		return "<{0} value=0x{1.value:08X}>".format(
 				_classname(self), self
 			)
+
+	def __eq__(self, other):
+		if not isinstance(other, type(self)): return False
+
+		if self.value != other.value: return False
+
+		return True
 
 	def extend(self, other):
 		raise TypeError(

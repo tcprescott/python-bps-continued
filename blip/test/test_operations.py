@@ -57,6 +57,26 @@ class TestHeader(unittest.TestCase):
 		header = ops.Header(1, 2, "café")
 		self.assertEqual(header.encode(0,0), b'blip\x81\x82\x85caf\xc3\xa9')
 
+	def test_equality(self):
+		"""
+		Header ops are equal if their properties are equal.
+		"""
+		op1 = ops.Header(1, 1, "1")
+		op2 = ops.Header(1, 1, "1")
+
+		self.assertEqual(op1, op2)
+
+		op3 = ops.Header(2, 1, "1")
+		self.assertNotEqual(op1, op3)
+
+		op4 = ops.Header(1, 2, "1")
+		self.assertNotEqual(op1, op4)
+
+		op5 = ops.Header(1, 1, "2")
+		self.assertNotEqual(op1, op5)
+
+		self.assertNotEqual(op1, (1, 1, "1"))
+
 
 class TestSourceRead(unittest.TestCase):
 
@@ -109,6 +129,19 @@ class TestSourceRead(unittest.TestCase):
 		"""
 		op = ops.SourceRead(5)
 		self.assertEqual(op.encode(0, 0), b'\x90')
+
+	def test_equality(self):
+		"""
+		SourceRead ops are only equal if their properties are equal.
+		"""
+		op1 = ops.SourceRead(5)
+		op2 = ops.SourceRead(5)
+		self.assertEqual(op1, op2)
+
+		op3 = ops.SourceRead(6)
+		self.assertNotEqual(op1, op3)
+
+		self.assertNotEqual(op1, 5)
 
 
 class TestTargetRead(unittest.TestCase):
@@ -163,6 +196,23 @@ class TestTargetRead(unittest.TestCase):
 		op = ops.TargetRead(b'A')
 		self.assertEqual(op.encode(0, 0), b'\x81A')
 
+	def test_equality(self):
+		"""
+		TargetRead ops are equal if their payloads are equal.
+		"""
+		op1 = ops.TargetRead(b'AB')
+		op2 = ops.TargetRead(b'AB')
+		self.assertEqual(op1, op2)
+
+		op3 = ops.TargetRead(b'A')
+		op3.extend(ops.TargetRead(b'B'))
+		self.assertEqual(op1, op3)
+
+		op4 = ops.TargetRead(b'BA')
+		self.assertNotEqual(op1, op4)
+
+		self.assertNotEqual(op1, b'AB')
+
 
 class CopyOperationTestsMixIn:
 
@@ -216,6 +266,22 @@ class CopyOperationTestsMixIn:
 		op2 = ops.Header(0, 1)
 
 		self.assertRaises(TypeError, op1.extend, op2)
+
+	def test_equality(self):
+		"""
+		This op is equal with another if its properties are equal.
+		"""
+		op1 = self.constructor(1, 1)
+		op2 = self.constructor(1, 1)
+		self.assertEqual(op1, op2)
+
+		op3 = self.constructor(2, 1)
+		self.assertNotEqual(op1, op3)
+
+		op4 = self.constructor(1, 2)
+		self.assertNotEqual(op1, op4)
+
+		self.assertNotEqual(op1, (1, 1))
 
 
 class TestSourceCopy(CopyOperationTestsMixIn, unittest.TestCase):
@@ -301,6 +367,19 @@ class CRCOperationTestsMixIn:
 				op.encode(0,0),
 				b'\x44\x33\x22\x11',
 			)
+
+	def test_equality(self):
+		"""
+		CRC operations are equal if their values are equal.
+		"""
+		op1 = self.constructor(1)
+		op2 = self.constructor(1)
+		self.assertEqual(op1, op2)
+
+		op3 = self.constructor(2)
+		self.assertNotEqual(op1, op3)
+
+		self.assertNotEqual(op1, 1)
 
 
 class TestSourceCRC32(CRCOperationTestsMixIn, unittest.TestCase):
