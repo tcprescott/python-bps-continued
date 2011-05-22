@@ -98,12 +98,12 @@ def read_blip(in_buf):
 		targetWriteOffset += length
 
 	# footer
-	yield (C.SOURCECRC32, unpack("I", in_buf.read(4))[0])
-	yield (C.TARGETCRC32, unpack("I", in_buf.read(4))[0])
+	yield (C.SOURCECRC32, unpack("<I", in_buf.read(4))[0])
+	yield (C.TARGETCRC32, unpack("<I", in_buf.read(4))[0])
 
 	# Check the patch's CRC32.
 	actual = in_buf.crc32
-	expected = unpack("I", in_buf.read(4))[0]
+	expected = unpack("<I", in_buf.read(4))[0]
 
 	if expected != actual:
 		raise CorruptFile("Patch claims its CRC32 is {expected:08X}, but "
@@ -189,7 +189,7 @@ def write_blip(iterable, out_buf):
 			raise CorruptFile("Unknown event {0!r}".format(item[0]))
 
 	# Lastly, write out the patch CRC32.
-	out_buf.write(pack("I", out_buf.crc32))
+	out_buf.write(pack("<I", out_buf.crc32))
 
 
 def read_blip_asm(in_buf):
