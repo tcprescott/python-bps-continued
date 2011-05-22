@@ -129,15 +129,3 @@ def write_var_int(number, handle):
 	"""
 	handle.write(encode_var_int(number))
 
-
-def op_size(op):
-	"""
-	Returns the number of bytes written by the given operation.
-
-	Returns None if the operation in question does not write bytes (such as
-	SOURCECRC32 or TARGETCRC32).
-	"""
-	if op[0] in (C.SOURCEREAD, C.SOURCECOPY, C.TARGETCOPY):
-		return op[1]
-	elif op[0] == C.TARGETREAD:
-		return len(op[1])

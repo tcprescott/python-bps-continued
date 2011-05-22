@@ -11,7 +11,7 @@ Tools for creating Blip patches.
 import sys
 import bisect
 from zlib import crc32
-from blip import constants as C
+from blip import operations as ops
 
 
 class BlockMap(dict):
@@ -52,7 +52,7 @@ def diff_bytearrays(source, target, metadata=""):
 	"""
 	Yield a sequence of patch operations that transform source to target.
 	"""
-	yield (C.BLIP_MAGIC, len(source), len(target), metadata)
+	yield ops.Header(len(source), len(target), metadata)
 
 	sourcemap = BlockMap()
 	for block, offset in iter_blocks(source):
@@ -65,7 +65,7 @@ def diff_bytearrays(source, target, metadata=""):
 	targetmap = BlockMap()
 	for block, offset in iter_blocks(target):
 		if block in sourcemap and offset in sourcemap[block]:
-			yield (C.SOURCEREAD, len(block))
+			yield ops.SourceRead(len(block))
 
 		elif block in targetmap:
 			# We prefer blocks in targetmap to blocks in sourcemap, because
@@ -83,21 +83,21 @@ def diff_bytearrays(source, target, metadata=""):
 				srcoffset = targetmap.nearest_instance(block,
 						lastTargetCopyOffset)
 
-			yield (C.TARGETCOPY, len(block), srcoffset)
+			yield ops.TargetCopy(len(block), srcoffset)
 
 			lastTargetCopyOffset = srcoffset + len(block)
 
 		elif block in sourcemap:
 			srcoffset = sourcemap.nearest_instance(block, lastSourceCopyOffset)
-			yield (C.SOURCECOPY, len(block), srcoffset)
+			yield ops.SourceCopy(len(block), srcoffset)
 
 			lastSourceCopyOffset = srcoffset + len(block)
 
 		else:
-			yield (C.TARGETREAD, block)
+			yield ops.TargetRead(block)
 
 		targetWriteOffset += len(block)
 		targetmap.add_block(block, offset)
 
-	yield (C.SOURCECRC32, crc32(source))
-	yield (C.TARGETCRC32, crc32(target))
+	yield ops.SourceCRC32(crc32(source))
+	yield ops.TargetCRC32(crc32(target))

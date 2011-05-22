@@ -9,10 +9,9 @@
 Functions for applying Blip patches.
 """
 from zlib import crc32
-from blip import constants as C
+from blip import operations as ops
 from blip.validate import check_stream, CorruptFile
 from blip.io import read_blip
-from blip.util import op_size
 
 
 def apply_to_bytearrays(iterable, source_buf, target_buf):
@@ -29,55 +28,46 @@ def apply_to_bytearrays(iterable, source_buf, target_buf):
 	writeOffset = 0
 
 	for item in iterable:
-		length = op_size(item)
 
-		if item[0] == C.BLIP_MAGIC:
+		if isinstance(item, ops.Header):
 			# Just the header, nothing for us to do here.
 			pass
 
-		elif item[0] == C.SOURCEREAD:
-			target_buf[writeOffset:writeOffset+length] = \
-					source_buf[writeOffset:writeOffset+length]
+		elif isinstance(item, ops.SourceRead):
+			target_buf[writeOffset:writeOffset+item.bytespan] = \
+					source_buf[writeOffset:writeOffset+item.bytespan]
 
-		elif item[0] == C.TARGETREAD:
-			target_buf[writeOffset:writeOffset+length] = item[1]
+		elif isinstance(item, ops.TargetRead):
+			target_buf[writeOffset:writeOffset+item.bytespan] = item.payload
 
-		elif item[0] == C.SOURCECOPY:
-			offset = item[2]
+		elif isinstance(item, ops.SourceCopy):
+			target_buf[writeOffset:writeOffset+item.bytespan] = \
+					source_buf[item.offset:item.offset+item.bytespan]
 
-			target_buf[writeOffset:writeOffset+length] = \
-					source_buf[offset:offset+length]
-
-		elif item[0] == C.TARGETCOPY:
-			offset = item[2]
-
+		elif isinstance(item, ops.TargetCopy):
 			# Because TargetCopy can be used to implement RLE-type compression,
 			# we have to copy a byte at a time rather than just slicing
 			# target_buf.
-			for i in range(length):
-				target_buf[writeOffset+i] = target_buf[offset+i]
+			for i in range(item.bytespan):
+				target_buf[writeOffset+i] = target_buf[item.offset+i]
 
-		elif item[0] == C.SOURCECRC32:
+		elif isinstance(item, ops.SourceCRC32):
 			actual = crc32(source_buf)
-			expected = item[1]
+			expected = item.value
 
 			if actual != expected:
 				raise CorruptFile("Source file should have CRC32 {0:08X}, "
 						"got {1:08X}".format(expected, actual))
 
-		elif item[0] == C.TARGETCRC32:
+		elif isinstance(item, ops.TargetCRC32):
 			actual = crc32(target_buf)
-			expected = item[1]
+			expected = item.value
 
 			if actual != expected:
 				raise CorruptFile("Target file should have CRC32 {0:08X}, "
 						"got {1:08X}".format(expected, actual))
 
-		else:
-			raise CorruptFile("unknown opcode: {0!r}".format(item))
-
-		if length:
-			writeOffset += length
+		writeOffset += item.bytespan
 
 
 def apply_to_files(patch, source, target):
@@ -95,19 +85,22 @@ def apply_to_files(patch, source, target):
 	iterable = check_stream(read_blip(patch))
 	sourceData = source.read()
 
-	header, sourceSize, targetSize, metadata = next(iterable)
+	header = next(iterable)
 
-	if sourceSize != len(sourceData):
+	if header.sourceSize != len(sourceData):
 		raise CorruptFile("Source file must be {sourceSize} bytes, but "
 				"{source!r} is {sourceDataLen} bytes.".format(
-					sourceSize=sourceSize, source=source,
+					sourceSize=header.sourceSize, source=source,
 					sourceDataLen=len(sourceData)))
 
-	targetData = bytearray(targetSize)
+	targetData = bytearray(header.targetSize)
 
 	apply_to_bytearrays(iterable, sourceData, targetData)
 
-	assert len(targetData) == targetSize, ("Should have written {0} bytes to "
-			"target, not {1}".format(targetSize, len(targetData)))
+	assert len(targetData) == header.targetSize, ("Should have written {0} "
+			"bytes to target, not {1}".format(
+				header.targetSize, len(targetData)
+			)
+		)
 
 	target.write(targetData)

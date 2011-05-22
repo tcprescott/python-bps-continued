@@ -9,7 +9,7 @@
 
 import unittest
 from io import BytesIO
-from blip import constants as C
+from blip import operations as ops
 from blip.io import read_blip
 from blip.test.util import find_blip
 from blip.validate import check_stream
@@ -40,19 +40,19 @@ class TestOptimize(unittest.TestCase):
 		Consecutive SourceReads are merged.
 		"""
 		original = [
-				(C.BLIP_MAGIC, 3, 3, ""),
-				(C.SOURCEREAD, 1),
-				(C.SOURCEREAD, 1),
-				(C.SOURCEREAD, 1),
-				(C.SOURCECRC32, 0x66A031A7),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.Header(3, 3),
+				ops.SourceRead(1),
+				ops.SourceRead(1),
+				ops.SourceRead(1),
+				ops.SourceCRC32(0x66A031A7),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		expected = [
-				(C.BLIP_MAGIC, 3, 3, ""),
-				(C.SOURCEREAD, 3),
-				(C.SOURCECRC32, 0x66A031A7),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.Header(3, 3),
+				ops.SourceRead(3),
+				ops.SourceCRC32(0x66A031A7),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		actual = list(test_optimize(original))
@@ -64,19 +64,19 @@ class TestOptimize(unittest.TestCase):
 		Consecutive TargetReads are merged.
 		"""
 		original = [
-				(C.BLIP_MAGIC, 0, 3, ""),
-				(C.TARGETREAD, b'A'),
-				(C.TARGETREAD, b'A'),
-				(C.TARGETREAD, b'A'),
-				(C.SOURCECRC32, 0x00000000),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.Header(0, 3),
+				ops.TargetRead(b'A'),
+				ops.TargetRead(b'A'),
+				ops.TargetRead(b'A'),
+				ops.SourceCRC32(0x00000000),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		expected = [
-				(C.BLIP_MAGIC, 0, 3, ""),
-				(C.TARGETREAD, b'AAA'),
-				(C.SOURCECRC32, 0x00000000),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.Header(0, 3),
+				ops.TargetRead(b'AAA'),
+				ops.SourceCRC32(0x00000000),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		actual = list(test_optimize(original))
@@ -88,29 +88,29 @@ class TestOptimize(unittest.TestCase):
 		A SourceCopy is merged if its offset is zero.
 		"""
 		original = [
-				(C.BLIP_MAGIC, 3, 4, ""),
+				ops.Header(3, 4),
 				# Make sure the SourceCopy offset never matches the
 				# targetWriteOffset, so that our SourceCopys won't be converted
 				# to SourceReads.
-				(C.TARGETREAD, b'A'),
-				(C.SOURCECOPY, 1, 0),
+				ops.TargetRead(b'A'),
+				ops.SourceCopy(1, 0),
 				# This SourceCopy resumes where the previous one left off, so
 				# it can be merged with the previous one.
-				(C.SOURCECOPY, 1, 1),
+				ops.SourceCopy(1, 1),
 				# This SourceCopy copies data from somewhere else in the file,
 				# so it can't be merged.
-				(C.SOURCECOPY, 1, 0),
-				(C.SOURCECRC32, 0x66A031A7),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.SourceCopy(1, 0),
+				ops.SourceCRC32(0x66A031A7),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		expected = [
-				(C.BLIP_MAGIC, 3, 4, ""),
-				(C.TARGETREAD, b'A'),
-				(C.SOURCECOPY, 2, 0),
-				(C.SOURCECOPY, 1, 0),
-				(C.SOURCECRC32, 0x66A031A7),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.Header(3, 4),
+				ops.TargetRead(b'A'),
+				ops.SourceCopy(2, 0),
+				ops.SourceCopy(1, 0),
+				ops.SourceCRC32(0x66A031A7),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		actual = list(test_optimize(original))
@@ -122,26 +122,26 @@ class TestOptimize(unittest.TestCase):
 		A TargetCopy is merged if its offset is zero.
 		"""
 		original = [
-				(C.BLIP_MAGIC, 0, 4, ""),
-				(C.TARGETREAD, b'A'),
-				(C.TARGETCOPY, 1, 0),
+				ops.Header(0, 4),
+				ops.TargetRead(b'A'),
+				ops.TargetCopy(1, 0),
 				# This TargetCopy resumes where the previous one left off, so
 				# it can be merged with the previous one.
-				(C.TARGETCOPY, 1, 1),
+				ops.TargetCopy(1, 1),
 				# This TargetCopy copies data from somewhere else in the file,
 				# so it can't be merged.
-				(C.TARGETCOPY, 1, 0),
-				(C.SOURCECRC32, 0x00000000),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.TargetCopy(1, 0),
+				ops.SourceCRC32(0x00000000),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		expected = [
-				(C.BLIP_MAGIC, 0, 4, ""),
-				(C.TARGETREAD, b'A'),
-				(C.TARGETCOPY, 2, 0),
-				(C.TARGETCOPY, 1, 0),
-				(C.SOURCECRC32, 0x00000000),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.Header(0, 4),
+				ops.TargetRead(b'A'),
+				ops.TargetCopy(2, 0),
+				ops.TargetCopy(1, 0),
+				ops.SourceCRC32(0x00000000),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		actual = list(test_optimize(original))
@@ -153,26 +153,26 @@ class TestOptimize(unittest.TestCase):
 		A SourceCopy at the targetWriteOffset can be a SourceRead.
 		"""
 		original = [
-				(C.BLIP_MAGIC, 3, 3, ""),
+				ops.Header(3, 3),
 				# This SourceCopy can be coverted to a SourceRead, because it's
 				# reading at the targetWriteOffset.
-				(C.SOURCECOPY, 1, 0),
+				ops.SourceCopy(1, 0),
 				# This SourceCopy can't be converted, since it's reading from
 				# a different offset.
-				(C.SOURCECOPY, 1, 0),
+				ops.SourceCopy(1, 0),
 				# This one can be converted.
-				(C.SOURCECOPY, 1, 2),
-				(C.SOURCECRC32, 0x66A031A7),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.SourceCopy(1, 2),
+				ops.SourceCRC32(0x66A031A7),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		expected = [
-				(C.BLIP_MAGIC, 3, 3, ""),
-				(C.SOURCEREAD, 1),
-				(C.SOURCECOPY, 1, 0),
-				(C.SOURCEREAD, 1),
-				(C.SOURCECRC32, 0x66A031A7),
-				(C.TARGETCRC32, 0x66A031A7),
+				ops.Header(3, 3),
+				ops.SourceRead(1),
+				ops.SourceCopy(1, 0),
+				ops.SourceRead(1),
+				ops.SourceCRC32(0x66A031A7),
+				ops.TargetCRC32(0x66A031A7),
 			]
 
 		actual = list(test_optimize(original))

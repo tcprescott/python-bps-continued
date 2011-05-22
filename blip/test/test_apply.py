@@ -10,7 +10,7 @@
 import unittest
 from pkgutil import get_data
 from io import BytesIO
-from blip import constants as C
+from blip import operations as ops
 from blip.apply import apply_to_bytearrays, apply_to_files
 from blip.io import read_blip
 from blip.validate import check_stream
@@ -22,11 +22,11 @@ class TestApplyToByteArrays(unittest.TestCase):
 		raw_patch = find_blip(patchname)
 		iterable = check_stream(read_blip(BytesIO(raw_patch)))
 
-		magic, sourceSize, targetSize, metadata = next(iterable)
+		header = next(iterable)
 
-		assert len(source) == sourceSize
+		assert len(source) == header.sourceSize
 
-		target = bytearray(targetSize)
+		target = bytearray(header.targetSize)
 
 		apply_to_bytearrays(iterable, source, target)
 
@@ -91,12 +91,12 @@ class TestApplyToByteArrays(unittest.TestCase):
 		Each TargetCopy updates writeOffset and targetCopyOffset correctly.
 		"""
 		iterable = check_stream([
-				(C.BLIP_MAGIC, 1, 5, ""),
-				(C.SOURCEREAD, 1),
-				(C.TARGETCOPY, 2, 0),
-				(C.TARGETCOPY, 2, 0),
-				(C.SOURCECRC32, 0xD3D99E8B),
-				(C.TARGETCRC32, 0x19F85109),
+				ops.Header(1, 5),
+				ops.SourceRead(1),
+				ops.TargetCopy(2, 0),
+				ops.TargetCopy(2, 0),
+				ops.SourceCRC32(0xD3D99E8B),
+				ops.TargetCRC32(0x19F85109),
 			])
 		source = b'A'
 		target = bytearray(5)
@@ -104,7 +104,6 @@ class TestApplyToByteArrays(unittest.TestCase):
 		apply_to_bytearrays(iterable, source, target)
 
 		self.assertSequenceEqual(b'AAAAA', target)
-
 
 
 class TestApplyToFiles(unittest.TestCase):
@@ -124,7 +123,6 @@ class TestApplyToFiles(unittest.TestCase):
 				expectedTarget.getvalue(),
 				actualTarget.getvalue(),
 			)
-
 
 
 if __name__ == "__main__":

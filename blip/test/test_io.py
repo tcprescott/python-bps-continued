@@ -9,7 +9,7 @@
 
 import unittest
 from io import BytesIO, StringIO
-from blip import constants as C
+from blip import operations as ops
 from blip.io import read_blip, write_blip, read_blip_asm, write_blip_asm
 from blip.test.util import find_blip, find_blipa
 
@@ -65,9 +65,9 @@ class TestIO(unittest.TestCase):
 		The simplest possible patch can be processed correctly.
 		"""
 		self._runtests("empty", [
-				(C.BLIP_MAGIC, 0, 0, ""),
-				(C.SOURCECRC32, 0),
-				(C.TARGETCRC32, 0),
+				ops.Header(0, 0),
+				ops.SourceCRC32(0),
+				ops.TargetCRC32(0),
 			])
 
 	def testPatchWithMetadata(self):
@@ -75,10 +75,10 @@ class TestIO(unittest.TestCase):
 		We can process a patch with metadata.
 		"""
 		self._runtests("metadata", [
-				(C.BLIP_MAGIC, 0, 0,
+				ops.Header(0, 0,
 					'<test>\n. leading "." is escaped\n</test>\n'),
-				(C.SOURCECRC32, 0),
-				(C.TARGETCRC32, 0),
+				ops.SourceCRC32(0),
+				ops.TargetCRC32(0),
 			])
 
 	def testPatchWithSourceRead(self):
@@ -86,11 +86,11 @@ class TestIO(unittest.TestCase):
 		We can process a patch with a SourceRead opcode.
 		"""
 		self._runtests("sourceread", [
-				(C.BLIP_MAGIC, 1, 1, ""),
-				(C.SOURCEREAD, 1),
+				ops.Header(1, 1),
+				ops.SourceRead(1),
 				# For the CRC32 to be correct, the one byte must be b'A'
-				(C.SOURCECRC32, 0xD3D99E8B),
-				(C.TARGETCRC32, 0xD3D99E8B),
+				ops.SourceCRC32(0xD3D99E8B),
+				ops.TargetCRC32(0xD3D99E8B),
 			])
 
 	def testPatchWithTargetRead(self):
@@ -98,10 +98,10 @@ class TestIO(unittest.TestCase):
 		We can process a patch with a TargetRead opcode.
 		"""
 		self._runtests("targetread", [
-				(C.BLIP_MAGIC, 0, 1, ""),
-				(C.TARGETREAD, b'A'),
-				(C.SOURCECRC32, 0x00000000),
-				(C.TARGETCRC32, 0xD3D99E8B),
+				ops.Header(0, 1),
+				ops.TargetRead(b'A'),
+				ops.SourceCRC32(0x00000000),
+				ops.TargetCRC32(0xD3D99E8B),
 			])
 
 	def testPatchWithSourceCopy(self):
@@ -109,15 +109,15 @@ class TestIO(unittest.TestCase):
 		We can process a patch with a SourceCopy opcode.
 		"""
 		self._runtests("sourcecopy", [
-				(C.BLIP_MAGIC, 2, 2, ""),
+				ops.Header(2, 2),
 				# We copy the second byte in the source file.
-				(C.SOURCECOPY, 1, 1),
+				ops.SourceCopy(1, 1),
 				# We copy the first byte in the source file.
-				(C.SOURCECOPY, 1, 0),
+				ops.SourceCopy(1, 0),
 				# This CRC32 represents b'AB'
-				(C.SOURCECRC32, 0x30694C07),
+				ops.SourceCRC32(0x30694C07),
 				# This CRC32 represents b'BA'
-				(C.TARGETCRC32, 0x824D4E7E),
+				ops.TargetCRC32(0x824D4E7E),
 			])
 
 	def testPatchWithTargetCopy(self):
@@ -125,19 +125,19 @@ class TestIO(unittest.TestCase):
 		We can process a patch with a TargetCopy opcode.
 		"""
 		self._runtests("targetcopy", [
-				(C.BLIP_MAGIC, 0, 4, ""),
+				ops.Header(0, 4),
 				# Add a TargetRead opcode, so TargetCopy has something to copy.
-				(C.TARGETREAD, b'A'),
+				ops.TargetRead(b'A'),
 				# Add a TargetCopy opcode that does the RLE trick of reading
 				# more data than is currently written.
-				(C.TARGETCOPY, 2, 0),
+				ops.TargetCopy(2, 0),
 				# Add a TargetCopy that seeks to an earlier offset, so we make
 				# sure negative offsets are handled correctly.
-				(C.TARGETCOPY, 1, 0),
+				ops.TargetCopy(1, 0),
 				# This CRC32 represents b''
-				(C.SOURCECRC32, 0x00000000),
+				ops.SourceCRC32(0x00000000),
 				# This CRC32 represents b'AAAA'
-				(C.TARGETCRC32, 0x9B0D08F1),
+				ops.TargetCRC32(0x9B0D08F1),
 			])
 
 

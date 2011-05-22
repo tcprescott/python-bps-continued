@@ -12,6 +12,7 @@ from struct import pack, unpack
 import re
 from binascii import b2a_hex, a2b_hex
 from blip import util
+from blip import operations as ops
 from blip import constants as C
 from blip.validate import CorruptFile, check_stream
 
@@ -57,7 +58,7 @@ def read_blip(in_buf):
 	metadatasize = util.read_var_int(in_buf)
 	metadata = in_buf.read(metadatasize).decode('utf-8')
 
-	yield (magic, sourcesize, targetsize, metadata)
+	yield ops.Header(sourcesize, targetsize, metadata)
 
 	targetWriteOffset = 0
 	sourceRelativeOffset = 0
@@ -68,10 +69,10 @@ def read_blip(in_buf):
 		length = (value >> C.OPCODESHIFT) + 1
 
 		if opcode == C.OP_SOURCEREAD:
-			yield (C.SOURCEREAD, length)
+			yield ops.SourceRead(length)
 
 		elif opcode == C.OP_TARGETREAD:
-			yield (C.TARGETREAD, in_buf.read(length))
+			yield ops.TargetRead(in_buf.read(length))
 
 		elif opcode == C.OP_SOURCECOPY:
 			raw_offset = util.read_var_int(in_buf)
@@ -79,7 +80,7 @@ def read_blip(in_buf):
 			if raw_offset & 1:
 				offset = -offset
 			sourceRelativeOffset += offset
-			yield (C.SOURCECOPY, length, sourceRelativeOffset)
+			yield ops.SourceCopy(length, sourceRelativeOffset)
 			sourceRelativeOffset += length
 
 		elif opcode == C.OP_TARGETCOPY:
@@ -88,7 +89,7 @@ def read_blip(in_buf):
 			if raw_offset & 1:
 				offset = -offset
 			targetRelativeOffset += offset
-			yield (C.TARGETCOPY, length, targetRelativeOffset)
+			yield ops.TargetCopy(length, targetRelativeOffset)
 			targetRelativeOffset += length
 
 		else:
@@ -98,8 +99,8 @@ def read_blip(in_buf):
 		targetWriteOffset += length
 
 	# footer
-	yield (C.SOURCECRC32, unpack("<I", in_buf.read(4))[0])
-	yield (C.TARGETCRC32, unpack("<I", in_buf.read(4))[0])
+	yield ops.SourceCRC32(unpack("<I", in_buf.read(4))[0])
+	yield ops.TargetCRC32(unpack("<I", in_buf.read(4))[0])
 
 	# Check the patch's CRC32.
 	actual = in_buf.crc32
@@ -126,67 +127,16 @@ def write_blip(iterable, out_buf):
 	# Keep track of the patch data's CRC32, so we can write it out at the end.
 	out_buf = util.CRCIOWrapper(out_buf)
 
-	# header
-	(magic, sourcesize, targetsize, metadata) = next(iterable)
-
-	out_buf.write(magic)
-	util.write_var_int(sourcesize, out_buf)
-	util.write_var_int(targetsize, out_buf)
-	metadata = metadata.encode('utf-8')
-	util.write_var_int(len(metadata), out_buf)
-	out_buf.write(metadata)
-
 	sourceRelativeOffset = 0
 	targetRelativeOffset = 0
 
 	for item in iterable:
-		if item[0] == C.SOURCEREAD:
-			util.write_var_int(
-					((item[1] - 1) << C.OPCODESHIFT) | C.OP_SOURCEREAD,
-					out_buf,
-				)
+		out_buf.write(item.encode(sourceRelativeOffset, targetRelativeOffset))
 
-		elif item[0] == C.TARGETREAD:
-			util.write_var_int(
-					((len(item[1]) - 1) << C.OPCODESHIFT) | C.OP_TARGETREAD,
-					out_buf,
-				)
-			out_buf.write(item[1])
-
-		elif item[0] == C.SOURCECOPY:
-			util.write_var_int(
-					((item[1] - 1) << C.OPCODESHIFT) | C.OP_SOURCECOPY,
-					out_buf,
-				)
-			relOffset = item[2] - sourceRelativeOffset
-			util.write_var_int(
-					(abs(relOffset) << 1) | (relOffset < 0),
-					out_buf,
-				)
-			sourceRelativeOffset += relOffset + item[1]
-
-		elif item[0] == C.TARGETCOPY:
-			util.write_var_int(
-					((item[1] - 1) << C.OPCODESHIFT) | C.OP_TARGETCOPY,
-					out_buf,
-				)
-			relOffset = item[2] - targetRelativeOffset
-			util.write_var_int(
-					(abs(relOffset) << 1) | (relOffset < 0),
-					out_buf,
-				)
-			targetRelativeOffset += relOffset + item[1]
-
-		elif item[0] == C.SOURCECRC32:
-			_, value = item
-			out_buf.write(pack("I", value))
-
-		elif item[0] == C.TARGETCRC32:
-			_, value = item
-			out_buf.write(pack("I", value))
-
-		else:
-			raise CorruptFile("Unknown event {0!r}".format(item[0]))
+		if isinstance(item, ops.SourceCopy):
+			sourceRelativeOffset = item.offset + item.bytespan
+		elif isinstance(item, ops.TargetCopy):
+			targetRelativeOffset = item.offset + item.bytespan
 
 	# Lastly, write out the patch CRC32.
 	out_buf.write(pack("<I", out_buf.crc32))
@@ -218,39 +168,46 @@ def read_blip_asm(in_buf):
 	_expect_label(C.METADATA, label)
 	metadata = _read_multiline_text(in_buf)
 
-	yield (C.BLIP_MAGIC, sourcesize, targetsize, metadata)
+	yield ops.Header(sourcesize, targetsize, metadata)
 
 	targetWriteOffset = 0
 	while targetWriteOffset < targetsize:
 		label, value = in_buf.readline().split(":")
+		item = None
+
 		if label == C.SOURCEREAD:
 			length = int(value)
-			yield (label, length)
-			targetWriteOffset += length
+			item = ops.SourceRead(length)
 
 		elif label == C.TARGETREAD:
 			data = _read_multiline_text(in_buf)
 			data = NON_HEX_DIGIT_RE.sub("", data)
 			data = data.encode('ascii')
 			data = a2b_hex(data)
-			yield (label, data)
-			targetWriteOffset += len(data)
+			item = ops.TargetRead(data)
 
-		elif label in (C.SOURCECOPY, C.TARGETCOPY):
+		elif label == C.SOURCECOPY:
 			length, offset = [int(x) for x in value.split()]
-			yield (label, length, offset)
-			targetWriteOffset += length
+			item = ops.SourceCopy(length, offset)
+
+		elif label == C.TARGETCOPY:
+			length, offset = [int(x) for x in value.split()]
+			item = ops.TargetCopy(length, offset)
 
 		else:
 			raise CorruptFile("Unknown label: {label!r}".format(label=label))
 
+		yield item
+
+		targetWriteOffset += item.bytespan
+
 	label, sourcecrc32 = in_buf.readline().split(":")
 	_expect_label(C.SOURCECRC32, label)
-	yield (C.SOURCECRC32, int(sourcecrc32, 16))
+	yield ops.SourceCRC32(int(sourcecrc32, 16))
 
 	label, targetcrc32 = in_buf.readline().split(":")
 	_expect_label(C.TARGETCRC32, label)
-	yield (C.TARGETCRC32, int(targetcrc32, 16))
+	yield ops.TargetCRC32(int(targetcrc32, 16))
 
 
 def write_blip_asm(iterable, out_buf):
@@ -265,15 +222,15 @@ def write_blip_asm(iterable, out_buf):
 	iterable = check_stream(iterable)
 
 	# header
-	(magic, sourcesize, targetsize, metadata) = next(iterable)
+	header = next(iterable)
 
 	out_buf.write(C.BLIPASM_MAGIC)
-	out_buf.write("{0}: {1:d}\n".format(C.SOURCESIZE, sourcesize))
-	out_buf.write("{0}: {1:d}\n".format(C.TARGETSIZE, targetsize))
+	out_buf.write("{0}: {1:d}\n".format(C.SOURCESIZE, header.sourceSize))
+	out_buf.write("{0}: {1:d}\n".format(C.TARGETSIZE, header.targetSize))
 
 	# metadata
 	out_buf.write("metadata:\n")
-	lines = metadata.split("\n")
+	lines = header.metadata.split("\n")
 	if lines[-1] == "":
 		lines.pop(-1)
 	for line in lines:
@@ -287,12 +244,12 @@ def write_blip_asm(iterable, out_buf):
 	out_buf.write(".\n")
 
 	for item in iterable:
-		if item[0] == C.SOURCEREAD:
-			out_buf.write("{0}: {1}\n".format(*item))
+		if isinstance(item, ops.SourceRead):
+			out_buf.write("sourceread: {0.bytespan}\n".format(item))
 
-		elif item[0] == C.TARGETREAD:
-			out_buf.write("{0}:\n".format(item[0]))
-			data = item[1]
+		elif isinstance(item, ops.TargetRead):
+			out_buf.write("targetread:\n")
+			data = item.payload
 			while len(data) > 40:
 				head, data = data[:40], data[40:]
 				out_buf.write(b2a_hex(head).decode('ascii'))
@@ -300,18 +257,14 @@ def write_blip_asm(iterable, out_buf):
 			out_buf.write(b2a_hex(data).decode('ascii'))
 			out_buf.write("\n.\n")
 
-		elif item[0] == C.SOURCECOPY:
-			out_buf.write("{0}: {1} {2}\n".format(*item))
+		elif isinstance(item, ops.SourceCopy):
+			out_buf.write("sourcecopy: {0.bytespan} {0.offset}\n".format(item))
 
-		elif item[0] == C.TARGETCOPY:
-			out_buf.write("{0}: {1} {2}\n".format(*item))
+		elif isinstance(item, ops.TargetCopy):
+			out_buf.write("targetcopy: {0.bytespan} {0.offset}\n".format(item))
 
-		elif item[0] == C.SOURCECRC32:
-			out_buf.write("{0}: {1:08X}\n".format(*item))
+		elif isinstance(item, ops.SourceCRC32):
+			out_buf.write("sourcecrc32: {0.value:08X}\n".format(item))
 
-		elif item[0] == C.TARGETCRC32:
-			out_buf.write("{0}: {1:08X}\n".format(*item))
-
-		else:
-			raise CorruptFile("Unknown label: {label!r}".format(label=item[0]))
-
+		elif isinstance(item, ops.TargetCRC32):
+			out_buf.write("targetcrc32: {0.value:08X}\n".format(item))
