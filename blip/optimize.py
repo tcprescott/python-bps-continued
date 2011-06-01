@@ -43,8 +43,7 @@ def optimize(iterable):
 				isinstance(lastItem, ops.TargetRead) and
 				isinstance(item, ops.TargetRead)
 			):
-			# We can merge consecutive TargetRead operations. For efficiency,
-			# we'll merge them into an ElasticTargetRead operation.
+			# We can merge consecutive TargetRead operations.
 			lastItem.extend(item)
 			continue
 
