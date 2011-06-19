@@ -174,7 +174,7 @@ class TargetRead(BaseOperation):
 				util.encode_var_int(
 					(len(payload) - 1) << C.OPCODESHIFT | C.OP_TARGETREAD
 				),
-				payload,		
+				payload,
 			])
 
 
@@ -237,7 +237,7 @@ class SourceCopy(_BaseCopy):
 					(abs(relOffset) << 1) | (relOffset < 0)
 				),
 			])
-	
+
 
 
 class TargetCopy(_BaseCopy):
@@ -253,7 +253,7 @@ class TargetCopy(_BaseCopy):
 					(abs(relOffset) << 1) | (relOffset < 0)
 				),
 			])
-	
+
 
 
 class _BaseCRC32(BaseOperation):

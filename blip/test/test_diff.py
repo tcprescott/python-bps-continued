@@ -124,7 +124,7 @@ class TestIterCandidateOps(unittest.TestCase):
 				{ b'A': [1, 3] },
 				# The match at offset 1 matches for 2 bytes, but the match at
 				# offset 3 matches for 3 bytes.
-				b'xABABC', 
+				b'xABABC',
 				b'xxABCD', 2,
 				ops.SourceCopy,
 			)
@@ -144,7 +144,7 @@ class TestIterCandidateOps(unittest.TestCase):
 				# Because the first match is at the same offset in the source
 				# and target buffers, we can represent it with a SourceRead
 				# operation.
-				b'xABABC', 
+				b'xABABC',
 				b'xABCD', 1,
 				ops.SourceCopy,
 			)

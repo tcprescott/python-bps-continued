@@ -39,7 +39,7 @@ class TestHeader(unittest.TestCase):
 		"""
 		header = ops.Header(1, 2, "3")
 		self.assertEqual(header.bytespan, 0)
-	
+
 	def test_cannot_extend(self):
 		"""
 		The header op cannot be extended.
@@ -340,7 +340,7 @@ class CRCOperationTestsMixIn:
 		self.assertRaises(AssertionError, self.constructor, "")
 		self.assertRaises(AssertionError, self.constructor, -1)
 		self.assertRaises(AssertionError, self.constructor, 2**32)
-	
+
 	def test_attributes(self):
 		"""
 		This operations sets its properties from its parameters.
