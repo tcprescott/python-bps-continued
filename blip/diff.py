@@ -7,6 +7,12 @@
 
 """
 Tools for creating Blip patches.
+
+For more information about the basic algorithm used here, see the article
+"Intro to Delta Encoding":
+
+	https://gitorious.org/python-blip/pages/IntroToDeltaEncoding
+
 """
 from zlib import crc32
 from blip import operations as ops
