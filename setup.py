@@ -23,7 +23,6 @@ setup(
 			"bin/blip-apply",
 			"bin/blip-asm",
 			"bin/blip-diff",
-			"bin/blip-diff-test",
 			"bin/blip-disasm",
 			"bin/blip-optimize",
 			"bin/blip-validate",
