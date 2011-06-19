@@ -50,9 +50,7 @@ use Blip patches, or implementing Blip support on their own.
     blip-diff SOURCEFILE TARGETFILE
 
 	Compares the data in the given files and writes a binary Blip patch
-	that will transform SOURCEFILE into TARGETFILE to standard output. It's
-	not currently very smart, and errs on the side of choosing operations
-	that blip-optimize can clean up.
+	that will transform SOURCEFILE into TARGETFILE to standard output.
 
 License
 =======
