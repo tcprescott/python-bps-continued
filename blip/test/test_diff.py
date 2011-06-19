@@ -156,7 +156,7 @@ class TestIterCandidateOps(unittest.TestCase):
 
 	def testTargetCopy(self):
 		"""
-		iter_candidate_ops can also generate 
+		iter_candidate_ops can also generate TargetCopy instructions.
 		"""
 		target = b'xAxABxABC'
 		#                ^
