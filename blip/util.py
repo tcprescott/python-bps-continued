@@ -9,7 +9,9 @@
 Utility methods used when reading Blip patches.
 """
 # For copyright and licensing information, see the file COPYING.
+import sys
 import io
+from time import clock
 from zlib import crc32
 from blip import constants as C
 
@@ -137,3 +139,25 @@ class BlockMap(dict):
 		offsetlist.append(offset)
 
 
+def blip_progress(iterable):
+	header = next(iterable)
+	yield header
+
+	total = header.targetSize
+	curpos = 0
+	nextupdate = 0 # Make sure we always update the first time.
+
+	for item in iterable:
+		curpos += item.bytespan
+
+		now = clock()
+		if now > nextupdate:
+			sys.stderr.write(
+					"\rWorking... {0:6.2f}%".format(100 * curpos / total)
+				)
+			sys.stderr.flush()
+			nextupdate = now + 1 # Update at most once per second
+
+		yield item
+
+	sys.stderr.write("\n")

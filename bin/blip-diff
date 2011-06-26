@@ -11,6 +11,7 @@ import sys
 from blip.diff import diff_bytearrays
 from blip.io import write_blip
 from blip.optimize import optimize
+from blip.util import blip_progress
 
 with open(sys.argv[1], 'rb') as source:
 	sourcedata = source.read()
@@ -20,4 +21,4 @@ with open(sys.argv[2], 'rb') as target:
 
 iterable = diff_bytearrays(sourcedata, targetdata)
 
-write_blip(optimize(iterable), sys.stdout.buffer)
+write_blip(blip_progress(optimize(iterable)), sys.stdout.buffer)
