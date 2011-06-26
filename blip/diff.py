@@ -97,11 +97,12 @@ def diff_bytearrays(source, target, metadata=""):
 	# targetWriteOffset moves past a particular byte, and when that byte's
 	# block is added to targetmap.
 	targetmap = BlockMap()
+	targetblocks = iter_blocks(target, blocksize)
 
 	# Points to the byte just beyond the most recent block added to targetmap;
 	# the difference between this and targetWriteOffset measures the 'some lag'
 	# described above.
-	lastTargetOffset = 0
+	nextTargetBlockOffset = 0
 
 	while targetWriteOffset < len(target):
 		block = target[targetWriteOffset:targetWriteOffset+blocksize]
@@ -139,10 +140,10 @@ def diff_bytearrays(source, target, metadata=""):
 
 		# If it's been more than BLOCKSIZE bytes since we added a block to
 		# targetmap, process the backlog.
-		while (targetWriteOffset - lastTargetOffset) >= blocksize:
-			newblock = target[lastTargetOffset:lastTargetOffset+blocksize]
-			targetmap.add_block(newblock, lastTargetOffset)
-			lastTargetOffset += len(newblock)
+		while (targetWriteOffset - nextTargetBlockOffset) >= blocksize:
+			newblock, offset = next(targetblocks)
+			targetmap.add_block(newblock, offset)
+			nextTargetBlockOffset = offset + len(newblock)
 
 	yield ops.SourceCRC32(crc32(source))
 	yield ops.TargetCRC32(crc32(target))
