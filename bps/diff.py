@@ -56,9 +56,22 @@ def iter_candidate_ops(block, blockmap, blocksrc, target, targetoffset, op):
 			)
 
 		if op is ops.SourceCopy and srcoffset == targetoffset:
-			yield ops.SourceRead(bytespan)
+			yield [ops.SourceRead(bytespan)]
 		else:
-			yield op(bytespan, srcoffset)
+			yield [op(bytespan, srcoffset)]
+
+
+def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
+	total_bytespan = 0
+	total_encoding_size = 0
+
+	for op in oplist:
+		total_bytespan += op.bytespan
+		total_encoding_size += len(
+				op.encode(lastSourceCopyOffset, lastTargetCopyOffset)
+			)
+
+	return total_bytespan / total_encoding_size
 
 
 def diff_bytearrays(source, target, metadata=""):
@@ -121,22 +134,23 @@ def diff_bytearrays(source, target, metadata=""):
 		# No matter what's in the source and target maps, spitting out one byte
 		# and moving on is always an option.
 		candidates.append(
-				ops.TargetRead(target[targetWriteOffset:targetWriteOffset+1])
+				[ops.TargetRead(target[targetWriteOffset:targetWriteOffset+1])]
 			)
 
 		# Find the candidate that represents the largest span of data
-		candidates.sort(key=lambda x: x.bytespan /
-				len(x.encode(lastSourceCopyOffset, lastTargetCopyOffset)))
-		op = candidates[-1]
+		candidates.sort(key=lambda x: op_efficiency(x, lastSourceCopyOffset,
+			lastTargetCopyOffset))
+		oplist = candidates[-1]
 
-		yield op
+		for op in oplist:
+			yield op
 
-		if isinstance(op, ops.TargetCopy):
-			lastTargetCopyOffset = op.offset + op.bytespan
-		if isinstance(op, ops.SourceCopy):
-			lastSourceCopyOffset = op.offset + op.bytespan
+			if isinstance(op, ops.TargetCopy):
+				lastTargetCopyOffset = op.offset + op.bytespan
+			if isinstance(op, ops.SourceCopy):
+				lastSourceCopyOffset = op.offset + op.bytespan
 
-		targetWriteOffset += op.bytespan
+			targetWriteOffset += op.bytespan
 
 		# If it's been more than BLOCKSIZE bytes since we added a block to
 		# targetmap, process the backlog.

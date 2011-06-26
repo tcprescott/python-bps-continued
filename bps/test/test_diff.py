@@ -111,7 +111,7 @@ class TestIterCandidateOps(unittest.TestCase):
 			)
 
 		self.assertEqual(
-				[ ops.SourceCopy(1, 1), ops.SourceCopy(1, 3), ],
+				[ [ops.SourceCopy(1, 1)], [ops.SourceCopy(1, 3)], ],
 				list(candidates),
 			)
 
@@ -130,7 +130,7 @@ class TestIterCandidateOps(unittest.TestCase):
 			)
 
 		self.assertEqual(
-				[ ops.SourceCopy(2, 1), ops.SourceCopy(3, 3) ],
+				[ [ops.SourceCopy(2, 1)], [ops.SourceCopy(3, 3)] ],
 				list(candidates),
 			)
 
@@ -150,7 +150,7 @@ class TestIterCandidateOps(unittest.TestCase):
 			)
 
 		self.assertEqual(
-				[ ops.SourceRead(2), ops.SourceCopy(3, 3) ],
+				[ [ops.SourceRead(2)], [ops.SourceCopy(3, 3)] ],
 				list(candidates),
 			)
 
@@ -169,7 +169,7 @@ class TestIterCandidateOps(unittest.TestCase):
 			)
 
 		self.assertEqual(
-				[ ops.TargetCopy(1, 1), ops.TargetCopy(2, 3) ],
+				[ [ops.TargetCopy(1, 1)], [ops.TargetCopy(2, 3)] ],
 				list(candidates),
 			)
 
