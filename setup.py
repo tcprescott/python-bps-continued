@@ -10,21 +10,21 @@
 from distutils.core import setup
 
 setup(
-		name="python-blip",
+		name="python-bps",
 		version="3",
-		description="A toolkit for working with Blip patch files",
+		description="A toolkit for working with BPS patch files",
 		url="https://gitorious.org/python-blip",
 		author="Timothy Allen",
 		author_email="screwtape@froup.com",
 		license="WTFPL",
-		packages=["blip", "blip.test"],
-		package_data={"blip.test": ["testdata/*"]},
+		packages=["bps", "bps.test"],
+		package_data={"bps.test": ["testdata/*"]},
 		scripts=[
-			"bin/blip-apply",
-			"bin/blip-asm",
-			"bin/blip-diff",
-			"bin/blip-disasm",
-			"bin/blip-optimize",
-			"bin/blip-validate",
+			"bin/bps-apply",
+			"bin/bps-asm",
+			"bin/bps-diff",
+			"bin/bps-disasm",
+			"bin/bps-optimize",
+			"bin/bps-validate",
 			],
 	)

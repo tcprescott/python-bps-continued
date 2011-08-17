@@ -1,0 +1,10 @@
+bpsasm
+sourcesize: 0
+targetsize: 0
+metadata:
+<test>
+.. leading "." is escaped
+</test>
+.
+sourcecrc32: 00000000
+targetcrc32: 00000000

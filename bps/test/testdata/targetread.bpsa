@@ -1,0 +1,10 @@
+bpsasm
+sourcesize: 0
+targetsize: 1
+metadata:
+.
+targetread:
+41
+.
+sourcecrc32: 00000000
+targetcrc32: D3D99E8B

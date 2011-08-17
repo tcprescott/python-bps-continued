@@ -1,0 +1,9 @@
+bpsasm
+sourcesize: 2
+targetsize: 2
+metadata:
+.
+sourcecopy: 1 1
+sourcecopy: 1 0
+sourcecrc32: 30694C07
+targetcrc32: 824D4E7E
