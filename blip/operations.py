@@ -239,7 +239,6 @@ class SourceCopy(_BaseCopy):
 			])
 
 
-
 class TargetCopy(_BaseCopy):
 
 	def encode(self, ignored, targetRelativeOffset):
@@ -253,7 +252,6 @@ class TargetCopy(_BaseCopy):
 					(abs(relOffset) << 1) | (relOffset < 0)
 				),
 			])
-
 
 
 class _BaseCRC32(BaseOperation):
