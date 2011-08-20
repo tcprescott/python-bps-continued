@@ -24,6 +24,7 @@ setup(
 			"bin/bps-asm",
 			"bin/bps-diff",
 			"bin/bps-disasm",
+			"bin/bps-graph",
 			"bin/bps-optimize",
 			"bin/bps-validate",
 			],

@@ -77,6 +77,13 @@ class TestHeader(unittest.TestCase):
 
 		self.assertNotEqual(op1, (1, 1, "1"))
 
+	def test_no_marker(self):
+		"""
+		Headers have no marker string.
+		"""
+		op = ops.Header(1, 1, "1")
+		self.assertEqual(op.marker, None)
+
 
 class TestSourceRead(unittest.TestCase):
 
@@ -142,6 +149,13 @@ class TestSourceRead(unittest.TestCase):
 		self.assertNotEqual(op1, op3)
 
 		self.assertNotEqual(op1, 5)
+
+	def test_marker(self):
+		"""
+		SourceRead ops use the marker 'sr'.
+		"""
+		op = ops.SourceRead(1)
+		self.assertEqual(op.marker, 'sr')
 
 
 class TestTargetRead(unittest.TestCase):
@@ -212,6 +226,13 @@ class TestTargetRead(unittest.TestCase):
 		self.assertNotEqual(op1, op4)
 
 		self.assertNotEqual(op1, b'AB')
+
+	def test_marker(self):
+		"""
+		TargetRead ops use the marker 'tR'.
+		"""
+		op = ops.TargetRead(b'A')
+		self.assertEqual(op.marker, 'tR')
 
 
 class CopyOperationTestsMixIn:
@@ -305,6 +326,13 @@ class TestSourceCopy(CopyOperationTestsMixIn, unittest.TestCase):
 		# the recorded offset will be negative.
 		self.assertEqual(op.encode(3, 0), b'\x82\x83')
 
+	def test_marker(self):
+		"""
+		SourceCopy ops use the marker 'Sc'.
+		"""
+		op = ops.SourceCopy(1, 2)
+		self.assertEqual(op.marker, 'Sc')
+
 
 class TestTargetCopy(CopyOperationTestsMixIn, unittest.TestCase):
 
@@ -326,6 +354,13 @@ class TestTargetCopy(CopyOperationTestsMixIn, unittest.TestCase):
 		# If the 'sourceRelativeOffset' is greater than the operation's offset,
 		# the recorded offset will be negative.
 		self.assertEqual(op.encode(0, 3), b'\x83\x83')
+
+	def test_marker(self):
+		"""
+		TargetCopy ops use the marker 'TC'.
+		"""
+		op = ops.TargetCopy(1, 2)
+		self.assertEqual(op.marker, 'TC')
 
 
 class CRCOperationTestsMixIn:
@@ -380,6 +415,13 @@ class CRCOperationTestsMixIn:
 		self.assertNotEqual(op1, op3)
 
 		self.assertNotEqual(op1, 1)
+
+	def test_no_marker(self):
+		"""
+		CRC operations have no marker string.
+		"""
+		op = self.constructor(1)
+		self.assertEqual(op.marker, None)
 
 
 class TestSourceCRC32(CRCOperationTestsMixIn, unittest.TestCase):

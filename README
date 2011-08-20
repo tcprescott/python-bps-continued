@@ -36,6 +36,25 @@ use BPS patches, or implementing BPS support on their own.
 	If an error is found, a description is printed to standard error and it
 	exits with a non-zero exit code. Otherwise, it generates no output.
 
+    bps-graph FILENAME
+
+	Reads the BPS patch in FILENAME and creates a diagram showing how the
+	bytes in the target file is encoded. Each byte is represented with
+	a single line of output, containing the byte's offset, the operation
+	used to encode that particular byte, and the extent of that particular
+	operation. For example, here is an excerpt from one particular patch:
+
+	    0000000032 ┐ tR
+	    0000000033 │ tR
+	    0000000034 │ tR
+	    0000000035 ┘ tR
+
+	Here we can see that one TargetRead operation was used to encode the
+	values of bytes 32 through 35 inclusive.
+
+	bps-graph is designed to be used with the standard Unix "join" tool, to
+	aid in comparing patches produced by different tools.
+
     bps-optimize FILENAME
 
 	Reads the BPS patch in FILENAME, performs some optimization

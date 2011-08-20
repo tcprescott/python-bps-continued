@@ -22,6 +22,10 @@ class BaseOperation:
 	# Unless otherwise configured, an operation affects no bytes.
 	bytespan = 0
 
+	# An abbreviation for this operation. Helpful for debugging tools that
+	# display a lot of operations on-screen at a time.
+	marker = None
+
 	def encode(self, sourceRelativeOffset, targetRelativeOffset):
 		"""
 		Returns a bytestring representing this operation.
@@ -96,6 +100,8 @@ class SourceRead(BaseOperation):
 
 	__slots__ = ['bytespan']
 
+	marker = 'sr'
+
 	def __init__(self, bytespan):
 		assert isinstance(bytespan, int)
 		assert bytespan > 0
@@ -129,6 +135,8 @@ class SourceRead(BaseOperation):
 class TargetRead(BaseOperation):
 
 	__slots__ = ['_payload']
+
+	marker = 'tR'
 
 	def __init__(self, payload):
 		assert isinstance(payload, bytes)
@@ -226,6 +234,8 @@ class _BaseCopy(BaseOperation):
 
 class SourceCopy(_BaseCopy):
 
+	marker = 'Sc'
+
 	def encode(self, sourceRelativeOffset, ignored):
 		relOffset = self.offset - sourceRelativeOffset
 
@@ -240,6 +250,8 @@ class SourceCopy(_BaseCopy):
 
 
 class TargetCopy(_BaseCopy):
+
+	marker = 'TC'
 
 	def encode(self, ignored, targetRelativeOffset):
 		relOffset = self.offset - targetRelativeOffset
