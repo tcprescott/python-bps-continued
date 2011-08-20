@@ -73,6 +73,18 @@ class TestEncodeVarInt(unittest.TestCase):
 			self.assertEqual(buf, encoded)
 
 
+class TestMeasureVarInt(unittest.TestCase):
+
+	def testMeasurement(self):
+		"""
+		Output matches our examples.
+		"""
+		for encoded, decoded in EXAMPLE_VAR_INTS.items():
+			expected = len(encoded)
+			actual = util.measure_var_int(decoded)
+			self.assertEqual(actual, expected)
+
+
 class TestCRCIOWrapper(unittest.TestCase):
 
 	def testEmptyStream(self):

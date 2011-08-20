@@ -126,6 +126,26 @@ def encode_var_int(number):
 	return buf
 
 
+def measure_var_int(number):
+	"""
+	Returns the length of the bytearray returned by encode_var_int().
+	"""
+	length = 0
+	shift = 1
+
+	while True:
+		length  += 1
+		number  -= (number & 0x7F)
+
+		if number == 0: break
+
+		number  -= shift
+		number >>= 7
+		shift   += 7
+
+	return length
+
+
 def write_var_int(number, handle):
 	"""
 	Writes a variable-length integer to the given file handle.

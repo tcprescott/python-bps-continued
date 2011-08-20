@@ -73,14 +73,6 @@ def measure_op(blocksrc, sourceoffset, target, targetoffset):
 	return backspan, forespan
 
 
-def op_efficiency(op, lastSourceCopyOffset, lastTargetCopyOffset):
-	total_encoding_size = 0
-
-	return op.bytespan / len(
-			op.encode(lastSourceCopyOffset, lastTargetCopyOffset)
-		)
-
-
 def diff_bytearrays(blocksize, source, target, metadata=""):
 	"""
 	Yield a sequence of patch operations that transform source to target.
@@ -155,7 +147,7 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 					opbuf.copy_offsets(backspan)
 				)
 
-			efficiency = op_efficiency(candidate,
+			efficiency = candidate.efficiency(
 					lastSourceCopyOffset, lastTargetCopyOffset)
 
 			if efficiency > bestOpEfficiency:
@@ -184,7 +176,7 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 					opbuf.copy_offsets(backspan)
 				)
 
-			efficiency = op_efficiency(candidate,
+			efficiency = candidate.efficiency(
 					lastSourceCopyOffset, lastTargetCopyOffset)
 
 			if efficiency > bestOpEfficiency:

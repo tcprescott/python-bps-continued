@@ -57,6 +57,13 @@ class TestHeader(unittest.TestCase):
 		header = ops.Header(1, 2, "café")
 		self.assertEqual(header.encode(0,0), b'BPS1\x81\x82\x85caf\xc3\xa9')
 
+	def test_efficiency(self):
+		"""
+		Since bytespan is zero, headers have efficiency 0.
+		"""
+		header = ops.Header(1, 2)
+		self.assertEqual(header.efficiency(0,0), 0)
+
 	def test_equality(self):
 		"""
 		Header ops are equal if their properties are equal.
@@ -145,6 +152,18 @@ class TestSourceRead(unittest.TestCase):
 		"""
 		op = ops.SourceRead(5)
 		self.assertEqual(op.encode(0, 0), b'\x90')
+
+	def test_efficiency(self):
+		"""
+		The SourceRead op's efficiency only depends on its length.
+		"""
+		op = ops.SourceRead(1)
+		self.assertAlmostEqual(op.efficiency(   0,    0), 1.0, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(1000, 1000), 1.0, delta=0.01)
+
+		op = ops.SourceRead(2)
+		self.assertAlmostEqual(op.efficiency(   0,    0), 2.0, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(1000, 1000), 2.0, delta=0.01)
 
 	def test_equality(self):
 		"""
@@ -257,6 +276,18 @@ class TestTargetRead(unittest.TestCase):
 		"""
 		op = ops.TargetRead(b'A')
 		self.assertEqual(op.encode(0, 0), b'\x81A')
+
+	def test_efficiency(self):
+		"""
+		The TargetRead op's efficiency only depends on its length.
+		"""
+		op = ops.TargetRead(b'A')
+		self.assertAlmostEqual(op.efficiency(   0,    0), 0.50, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(1000, 1000), 0.50, delta=0.01)
+
+		op = ops.TargetRead(b'AAA')
+		self.assertAlmostEqual(op.efficiency(   0,    0), 0.75, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(1000, 1000), 0.75, delta=0.01)
 
 	def test_equality(self):
 		"""
@@ -452,6 +483,20 @@ class TestSourceCopy(CopyOperationTestsMixIn, unittest.TestCase):
 		# the recorded offset will be negative.
 		self.assertEqual(op.encode(3, 0), b'\x82\x83')
 
+	def test_efficiency(self):
+		"""
+		The SourceCopy op's efficiency depends on length, lastSourceCopyOffset.
+		"""
+		op = ops.SourceCopy(2, 0)
+		self.assertAlmostEqual(op.efficiency(   0,    0), 1.00, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(   0, 1000), 1.00, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(1000,    0), 0.66, delta=0.01)
+
+		op = ops.SourceCopy(4, 0)
+		self.assertAlmostEqual(op.efficiency(   0,    0), 2.00, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(   0, 1000), 2.00, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(1000,    0), 1.33, delta=0.01)
+
 	def test_marker(self):
 		"""
 		SourceCopy ops use the marker 'Sc'.
@@ -480,6 +525,20 @@ class TestTargetCopy(CopyOperationTestsMixIn, unittest.TestCase):
 		# If the 'sourceRelativeOffset' is greater than the operation's offset,
 		# the recorded offset will be negative.
 		self.assertEqual(op.encode(0, 3), b'\x83\x83')
+
+	def test_efficiency(self):
+		"""
+		The TargetCopy op's efficiency depends on length, lastTargetCopyOffset.
+		"""
+		op = ops.TargetCopy(2, 0)
+		self.assertAlmostEqual(op.efficiency(   0,    0), 1.00, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(   0, 1000), 0.66, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(1000,    0), 1.00, delta=0.01)
+
+		op = ops.TargetCopy(4, 0)
+		self.assertAlmostEqual(op.efficiency(   0,    0), 2.00, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(   0, 1000), 1.33, delta=0.01)
+		self.assertAlmostEqual(op.efficiency(1000,    0), 2.00, delta=0.01)
 
 	def test_marker(self):
 		"""
@@ -528,6 +587,13 @@ class CRCOperationTestsMixIn:
 				op.encode(0,0),
 				b'\x44\x33\x22\x11',
 			)
+
+	def test_efficiency(self):
+		"""
+		Since bytespan is zero, CRC operations have efficiency 0.
+		"""
+		op = self.constructor(0x11223344)
+		self.assertEqual(op.efficiency(0,0), 0)
 
 	def test_equality(self):
 		"""

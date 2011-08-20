@@ -35,6 +35,12 @@ class BaseOperation:
 		"""
 		raise NotImplementedError()
 
+	def efficiency(self, sourceRelativeOffset, targetRelativeOffset):
+		"""
+		Returns a float representing the efficiency of this op at this offset.
+		"""
+		raise NotImplementedError()
+
 	def extend(self, other):
 		"""
 		Concatenate the other operation with this one, if possible.
@@ -110,6 +116,9 @@ class Header(BaseOperation):
 				"Cannot shrink a header, let alone by {0!r}".format(length)
 			)
 
+	def efficiency(self, ignored, ignored2):
+		return 0
+
 
 class SourceRead(BaseOperation):
 
@@ -156,6 +165,11 @@ class SourceRead(BaseOperation):
 					"Cannot shrink: {0!r} is too large".format(length))
 
 		self.bytespan -= abs(length)
+
+	def efficiency(self, ignored, ignored2):
+		return self.bytespan / util.measure_var_int (
+				(self.bytespan - 1) << C.OPCODESHIFT | C.OP_SOURCEREAD
+			)
 
 
 class TargetRead(BaseOperation):
@@ -224,6 +238,12 @@ class TargetRead(BaseOperation):
 			self._payload = [self.payload[length:]]
 		else:
 			self._payload = [self.payload[:length]]
+
+	def efficiency(self, ignored, ignored2):
+		bytespan = self.bytespan
+		return bytespan / (bytespan + util.measure_var_int(
+				(bytespan - 1) << C.OPCODESHIFT | C.OP_TARGETREAD
+			))
 
 
 class _BaseCopy(BaseOperation):
@@ -303,6 +323,18 @@ class SourceCopy(_BaseCopy):
 				),
 			])
 
+	def efficiency(self, lastSourceCopyOffset, ignored):
+		relOffset = self.offset - lastSourceCopyOffset
+
+		return self.bytespan / (
+				util.measure_var_int(
+					(self.bytespan - 1) << C.OPCODESHIFT | C.OP_SOURCECOPY
+				) +
+				util.measure_var_int(
+					(abs(relOffset) << 1) | (relOffset < 0)
+				)
+			)
+
 
 class TargetCopy(_BaseCopy):
 
@@ -319,6 +351,18 @@ class TargetCopy(_BaseCopy):
 					(abs(relOffset) << 1) | (relOffset < 0)
 				),
 			])
+
+	def efficiency(self, ignored, lastTargetCopyOffset):
+		relOffset = self.offset - lastTargetCopyOffset
+
+		return self.bytespan / (
+				util.measure_var_int(
+					(self.bytespan - 1) << C.OPCODESHIFT | C.OP_TARGETCOPY
+				) +
+				util.measure_var_int(
+					(abs(relOffset) << 1) | (relOffset < 0)
+				)
+			)
 
 
 class _BaseCRC32(BaseOperation):
@@ -358,6 +402,9 @@ class _BaseCRC32(BaseOperation):
 		raise TypeError(
 				"Cannot shrink {0!r}, let alone by {1!r}".format(self, length)
 			)
+
+	def efficiency(self, ignored, ignored2):
+		return 0
 
 
 class SourceCRC32(_BaseCRC32):
