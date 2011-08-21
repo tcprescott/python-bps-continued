@@ -28,37 +28,24 @@ def iter_blocks(data, blocksize):
 		offset += len(block)
 
 
-def measure_span(source, sourceoffset, target, targetoffset, length):
-	while True:
-		if sourceoffset + length >= len(source): break
-		if targetoffset + length >= len(target): break
-
-		if source[sourceoffset+length] != target[targetoffset+length]: break
-
-		length += 1
-
-	return length
-
-
-def iter_candidate_ops(block, blockmap, blocksrc, target, targetoffset, op):
+def iter_candidate_ops(blocksrc, offsetlist, target, targetoffset, op):
 	"""
-	Yield operations that encode the given target block at targetoffset.
+	Yield operations that encode the block at targetoffset in the target.
 	"""
-	blocklen = len(block)
-
 	# Find all the offsets in blocksrc where the given block occurs.
-	for srcoffset in blockmap.get(block, []):
-		# Find how many bytes at srcoffset match the target at targetoffset.
-		bytespan = measure_span(
-				blocksrc, srcoffset,
-				target, targetoffset,
-				blocklen,
-			)
+	for sourceoffset in offsetlist:
+		# Find how many bytes at sourceoffset match the target at targetoffset.
+		bytespan = 0
+		while blocksrc[sourceoffset+bytespan] == target[targetoffset+bytespan]:
+			bytespan += 1
 
-		if op is ops.SourceCopy and srcoffset == targetoffset:
+			if sourceoffset + bytespan >= len(blocksrc): break
+			if targetoffset + bytespan >= len(target): break
+
+		if op is ops.SourceCopy and sourceoffset == targetoffset:
 			yield [ops.SourceRead(bytespan)]
 		else:
-			yield [op(bytespan, srcoffset)]
+			yield [op(bytespan, sourceoffset)]
 
 
 def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
@@ -123,13 +110,19 @@ def diff_bytearrays(source, target, metadata=""):
 		candidates = []
 
 		# Any matching blocks anywhere in the source buffer are candidates.
-		candidates.extend(iter_candidate_ops(block, sourcemap, source, target,
-				targetWriteOffset, ops.SourceCopy))
+		candidates.extend(iter_candidate_ops(
+				source, sourcemap.get(block, []),
+				target, targetWriteOffset,
+				ops.SourceCopy)
+			)
 
-		# Any matching blocks in the target buffer that occur before
-		# targetWriteOffset are candidates.
-		candidates.extend(iter_candidate_ops(block, targetmap, target, target,
-				targetWriteOffset, ops.TargetCopy))
+		# Any matching blocks in the target buffer that we've added to the
+		# targetmap so far are candidates.
+		candidates.extend(iter_candidate_ops(
+				target, targetmap.get(block, []),
+				target, targetWriteOffset,
+				ops.TargetCopy)
+			)
 
 		# No matter what's in the source and target maps, spitting out one byte
 		# and moving on is always an option.

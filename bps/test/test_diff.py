@@ -55,57 +55,14 @@ class TestIterBlocks(unittest.TestCase):
 			], list(diff.iter_blocks(source, 3)))
 
 
-class TestMeasureSpan(unittest.TestCase):
-
-	def testBasicOperation(self):
-		"""
-		measure_span returns the correct length for a matching span.
-		"""
-		#           vvvvvvvvv      expected matching span
-		source = [0,1,2,3,4,5,6,7]
-		target = [1,2,3,4,5,7,9,0]
-		#         ^^^^^^^^^        expected matching span
-
-		self.assertEqual(5, diff.measure_span(source, 1, target, 0, 4))
-
-	def testShortSource(self):
-		"""
-		measure_span stops when it hits the end of the source sequence.
-		"""
-		source = [0,1,2,3,4,5,6,7]
-		target = [3,4,5,6,7,8,9,0]
-
-		self.assertEqual(5, diff.measure_span(source, 3, target, 0, 4))
-
-	def testShortTarget(self):
-		"""
-		measure_span stops when it hits the end of the target sequence.
-		"""
-		source = [3,4,5,6,7,8,9,0]
-		target = [0,1,2,3,4,5,6,7]
-
-		self.assertEqual(5, diff.measure_span(source, 0, target, 3, 4))
-
-
 class TestIterCandidateOps(unittest.TestCase):
-
-	def testMissingBlock(self):
-		"""
-		iter_candidate_ops yields nothing if the block cannot be found.
-		"""
-		candidates = diff.iter_candidate_ops(b'A', {}, b'ABC', b'CAB', 1,
-				ops.SourceCopy)
-
-		self.assertEqual([], list(candidates))
 
 	def testExactlyMatchingBlocks(self):
 		"""
 		iter_candidate_ops yields blocks that match, if there are any.
 		"""
 		candidates = diff.iter_candidate_ops(
-				b'A',
-				{ b'A': [1, 3] },
-				b'aAbAa',
+				b'aAbAa', [1, 3],
 				b'xxAx', 2,
 				ops.SourceCopy,
 			)
@@ -120,11 +77,9 @@ class TestIterCandidateOps(unittest.TestCase):
 		iter_candidate_ops extends blocks, where possible.
 		"""
 		candidates = diff.iter_candidate_ops(
-				b'A',
-				{ b'A': [1, 3] },
 				# The match at offset 1 matches for 2 bytes, but the match at
 				# offset 3 matches for 3 bytes.
-				b'xABABC',
+				b'xABABC', [1, 3],
 				b'xxABCD', 2,
 				ops.SourceCopy,
 			)
@@ -139,12 +94,10 @@ class TestIterCandidateOps(unittest.TestCase):
 		iter_candidate_ops yields SourceRead ops when possible.
 		"""
 		candidates = diff.iter_candidate_ops(
-				b'A',
-				{ b'A': [1, 3] },
 				# Because the first match is at the same offset in the source
 				# and target buffers, we can represent it with a SourceRead
 				# operation.
-				b'xABABC',
+				b'xABABC', [1, 3],
 				b'xABCD', 1,
 				ops.SourceCopy,
 			)
@@ -161,10 +114,10 @@ class TestIterCandidateOps(unittest.TestCase):
 		target = b'xAxABxABC'
 		#                ^
 		targetWriteOffset = 6
-		targetmap = { b'A': [1, 3] }
 
 		candidates = diff.iter_candidate_ops(
-				b'A', targetmap, target, target, targetWriteOffset,
+				target, [1, 3],
+				target, targetWriteOffset,
 				ops.TargetCopy,
 			)
 
