@@ -28,12 +28,20 @@ def iter_blocks(data, blocksize):
 		offset += len(block)
 
 
-def iter_candidate_ops(blocksrc, offsetlist, target, targetoffset, op):
+def iter_candidate_ops(pendingTargetReadSize, blocksrc, offsetlist, target,
+		targetoffset, op):
 	"""
 	Yield operations that encode the block at targetoffset in the target.
 	"""
 	# Find all the offsets in blocksrc where the given block occurs.
 	for sourceoffset in offsetlist:
+		results = []
+
+		if pendingTargetReadSize:
+			results.append(ops.TargetRead(
+					target[targetoffset-pendingTargetReadSize:targetoffset]
+				))
+
 		# Find how many bytes at sourceoffset match the target at targetoffset.
 		bytespan = 0
 		while blocksrc[sourceoffset+bytespan] == target[targetoffset+bytespan]:
@@ -43,9 +51,11 @@ def iter_candidate_ops(blocksrc, offsetlist, target, targetoffset, op):
 			if targetoffset + bytespan >= len(target): break
 
 		if op is ops.SourceCopy and sourceoffset == targetoffset:
-			yield [ops.SourceRead(bytespan)]
+			results.append(ops.SourceRead(bytespan))
 		else:
-			yield [op(bytespan, sourceoffset)]
+			results.append(op(bytespan, sourceoffset))
+
+		yield results
 
 
 def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
@@ -104,6 +114,9 @@ def diff_bytearrays(source, target, metadata=""):
 	# described above.
 	nextTargetBlockOffset = 0
 
+	# The number of bytes to be added to be written via TargetRead.
+	pendingTargetReadSize = 0
+
 	while targetWriteOffset < len(target):
 		block = target[targetWriteOffset:targetWriteOffset+blocksize]
 
@@ -111,6 +124,7 @@ def diff_bytearrays(source, target, metadata=""):
 
 		# Any matching blocks anywhere in the source buffer are candidates.
 		candidates.extend(iter_candidate_ops(
+				pendingTargetReadSize,
 				source, sourcemap.get(block, []),
 				target, targetWriteOffset,
 				ops.SourceCopy)
@@ -119,31 +133,38 @@ def diff_bytearrays(source, target, metadata=""):
 		# Any matching blocks in the target buffer that we've added to the
 		# targetmap so far are candidates.
 		candidates.extend(iter_candidate_ops(
+				pendingTargetReadSize,
 				target, targetmap.get(block, []),
 				target, targetWriteOffset,
 				ops.TargetCopy)
 			)
 
-		# No matter what's in the source and target maps, spitting out one byte
-		# and moving on is always an option.
-		candidates.append(
-				[ops.TargetRead(target[targetWriteOffset:targetWriteOffset+1])]
-			)
+		if not candidates:
+			# We can't find a way to encode this block, so we'll have to issue
+			# a TargetRead... later.
+			pendingTargetReadSize += 1
+			targetWriteOffset += 1
+			continue
 
 		# Find the candidate that represents the largest span of data
-		candidates.sort(key=lambda x: op_efficiency(x, lastSourceCopyOffset,
-			lastTargetCopyOffset))
-		oplist = candidates[-1]
+		oplist = max(candidates, key=lambda x:
+				op_efficiency(x, lastSourceCopyOffset, lastTargetCopyOffset)
+			)
 
 		for op in oplist:
 			yield op
+
+			if not isinstance(op, ops.TargetRead):
+				# We've already adjusted targetWriteOffset to account for
+				# TargetRead ops.
+				targetWriteOffset += op.bytespan
 
 			if isinstance(op, ops.TargetCopy):
 				lastTargetCopyOffset = op.offset + op.bytespan
 			if isinstance(op, ops.SourceCopy):
 				lastSourceCopyOffset = op.offset + op.bytespan
 
-			targetWriteOffset += op.bytespan
+		pendingTargetReadSize = 0
 
 		# If it's been more than BLOCKSIZE bytes since we added a block to
 		# targetmap, process the backlog.
@@ -151,6 +172,11 @@ def diff_bytearrays(source, target, metadata=""):
 			newblock, offset = next(targetblocks)
 			targetmap.add_block(newblock, offset)
 			nextTargetBlockOffset = offset + len(newblock)
+
+	if pendingTargetReadSize:
+		start = len(target) - pendingTargetReadSize
+		end = len(target)
+		yield ops.TargetRead(target[start:end])
 
 	yield ops.SourceCRC32(crc32(source))
 	yield ops.TargetCRC32(crc32(target))

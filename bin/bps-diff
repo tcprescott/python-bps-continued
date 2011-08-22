@@ -10,7 +10,6 @@
 import sys
 from bps.diff import diff_bytearrays
 from bps.io import write_bps
-from bps.optimize import optimize
 from bps.util import bps_progress
 
 with open(sys.argv[1], 'rb') as source:
@@ -21,4 +20,4 @@ with open(sys.argv[2], 'rb') as target:
 
 iterable = diff_bytearrays(sourcedata, targetdata)
 
-write_bps(bps_progress(optimize(iterable)), sys.stdout.buffer)
+write_bps(bps_progress(iterable), sys.stdout.buffer)
