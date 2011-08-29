@@ -142,7 +142,7 @@ class TestIterCandidateOps(unittest.TestCase):
 		candidates = diff.iter_candidate_ops(
 				3,
 				source, [4],
-				target, 4,
+				target, 1,
 				ops.SourceCopy,
 			)
 

@@ -28,6 +28,47 @@ def iter_blocks(data, blocksize):
 		offset += len(block)
 
 
+def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
+		targetoffset, op):
+	"""
+	Measure the match between blocksrc and target at these offsets.
+	"""
+
+	# First, measure backwards.
+	while True:
+		if sourceoffset <= 0: break
+		if targetoffset + pendingTargetReadSize <= 0: break
+		if pendingTargetReadSize <= 0: break
+
+		prevsourcebyte = blocksrc[sourceoffset-1]
+		prevtargetbyte = target[targetoffset+pendingTargetReadSize-1]
+
+		if prevsourcebyte != prevtargetbyte: break
+
+		pendingTargetReadSize -= 1
+		sourceoffset -= 1
+
+	if pendingTargetReadSize:
+		yield ops.TargetRead(
+				target[targetoffset:targetoffset+pendingTargetReadSize]
+			)
+
+		targetoffset += pendingTargetReadSize
+
+	# Next, measure forwards.
+	bytespan = 0
+	while blocksrc[sourceoffset+bytespan] == target[targetoffset+bytespan]:
+		bytespan += 1
+
+		if sourceoffset + bytespan >= len(blocksrc): break
+		if targetoffset + bytespan >= len(target): break
+
+	if op is ops.SourceCopy and sourceoffset == targetoffset:
+		yield ops.SourceRead(bytespan)
+	else:
+		yield op(bytespan, sourceoffset)
+
+
 def iter_candidate_ops(pendingTargetReadSize, blocksrc, offsetlist, target,
 		targetoffset, op):
 	"""
@@ -35,27 +76,14 @@ def iter_candidate_ops(pendingTargetReadSize, blocksrc, offsetlist, target,
 	"""
 	# Find all the offsets in blocksrc where the given block occurs.
 	for sourceoffset in offsetlist:
-		results = []
-
-		if pendingTargetReadSize:
-			results.append(ops.TargetRead(
-					target[targetoffset-pendingTargetReadSize:targetoffset]
-				))
-
-		# Find how many bytes at sourceoffset match the target at targetoffset.
-		bytespan = 0
-		while blocksrc[sourceoffset+bytespan] == target[targetoffset+bytespan]:
-			bytespan += 1
-
-			if sourceoffset + bytespan >= len(blocksrc): break
-			if targetoffset + bytespan >= len(target): break
-
-		if op is ops.SourceCopy and sourceoffset == targetoffset:
-			results.append(ops.SourceRead(bytespan))
-		else:
-			results.append(op(bytespan, sourceoffset))
-
-		yield results
+		yield list(
+				measure_op(
+					pendingTargetReadSize,
+					blocksrc, sourceoffset,
+					target, targetoffset,
+					op,
+				)
+			)
 
 
 def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
@@ -117,8 +145,10 @@ def diff_bytearrays(source, target, metadata=""):
 	# The number of bytes to be added to be written via TargetRead.
 	pendingTargetReadSize = 0
 
-	while targetWriteOffset < len(target):
-		block = target[targetWriteOffset:targetWriteOffset+blocksize]
+	while targetWriteOffset + pendingTargetReadSize < len(target):
+		blockstart = targetWriteOffset + pendingTargetReadSize
+		blockend = blockstart + blocksize
+		block = target[blockstart:blockend]
 
 		candidates = []
 
@@ -143,7 +173,6 @@ def diff_bytearrays(source, target, metadata=""):
 			# We can't find a way to encode this block, so we'll have to issue
 			# a TargetRead... later.
 			pendingTargetReadSize += 1
-			targetWriteOffset += 1
 			continue
 
 		# Find the candidate that represents the largest span of data
@@ -154,10 +183,7 @@ def diff_bytearrays(source, target, metadata=""):
 		for op in oplist:
 			yield op
 
-			if not isinstance(op, ops.TargetRead):
-				# We've already adjusted targetWriteOffset to account for
-				# TargetRead ops.
-				targetWriteOffset += op.bytespan
+			targetWriteOffset += op.bytespan
 
 			if isinstance(op, ops.TargetCopy):
 				lastTargetCopyOffset = op.offset + op.bytespan
