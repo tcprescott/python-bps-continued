@@ -76,9 +76,10 @@ def check_stream(iterable):
 			# Not allowed to TargetCopy an offset that points past the part
 			# we've written.
 			if item.offset >= targetWriteOffset:
-				raise CorruptFile("bad hunk: reads past the end "
-						"of the written part of the target file: "
-						"{item!r}".format(item=item))
+				raise CorruptFile("bad hunk: reads past the end of the "
+						"written part of the target file at "
+						"{targetWriteOffset}: {item!r}".format(item=item,
+							targetWriteOffset=targetWriteOffset))
 
 		else:
 			raise CorruptFile("bad hunk: unknown opcode {item!r}".format(
