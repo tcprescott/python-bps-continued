@@ -146,33 +146,36 @@ def diff_bytearrays(source, target, metadata=""):
 	pendingTargetReadSize = 0
 
 	while targetWriteOffset + pendingTargetReadSize < len(target):
-		blockstart = targetWriteOffset + pendingTargetReadSize
-		blockend = blockstart + blocksize
-		block = target[blockstart:blockend]
-
 		candidates = []
 
-		# Any matching blocks anywhere in the source buffer are candidates.
-		candidates.extend(iter_candidate_ops(
-				pendingTargetReadSize,
-				source, sourcemap.get(block, []),
-				target, targetWriteOffset,
-				ops.SourceCopy)
-			)
+		for extraOffset in range(blocksize):
+			blockstart = targetWriteOffset + pendingTargetReadSize + extraOffset
+			blockend = blockstart + blocksize
+			block = target[blockstart:blockend]
 
-		# Any matching blocks in the target buffer that we've added to the
-		# targetmap so far are candidates.
-		candidates.extend(iter_candidate_ops(
-				pendingTargetReadSize,
-				target, targetmap.get(block, []),
-				target, targetWriteOffset,
-				ops.TargetCopy)
-			)
+			# Any matching blocks anywhere in the source buffer are candidates.
+			candidates.extend(iter_candidate_ops(
+					pendingTargetReadSize + extraOffset,
+					source, sourcemap.get(block, []),
+					target, targetWriteOffset,
+					ops.SourceCopy)
+				)
+
+			# Any matching blocks in the target buffer that we've added to the
+			# targetmap so far are candidates.
+			candidates.extend(iter_candidate_ops(
+					pendingTargetReadSize + extraOffset,
+					target, targetmap.get(block, []),
+					target, targetWriteOffset,
+					ops.TargetCopy)
+				)
 
 		if not candidates:
 			# We can't find a way to encode this block, so we'll have to issue
-			# a TargetRead... later.
-			pendingTargetReadSize += 1
+			# a TargetRead... later. Because the extraOffset loop above has
+			# tested up to (blocksize-1) blocks forward, we can advance by
+			# blocksize.
+			pendingTargetReadSize += blocksize
 			continue
 
 		# Find the candidate that represents the largest span of data
