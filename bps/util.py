@@ -11,6 +11,7 @@ Utility methods used when reading BPS patches.
 # For copyright and licensing information, see the file COPYING.
 import sys
 import io
+from array import array
 from time import clock
 from zlib import crc32
 from bps import constants as C
@@ -135,7 +136,7 @@ def write_var_int(number, handle):
 class BlockMap(dict):
 
 	def add_block(self, block, offset):
-		offsetlist = self.setdefault(block, [])
+		offsetlist = self.setdefault(block, array('L'))
 		offsetlist.append(offset)
 
 
