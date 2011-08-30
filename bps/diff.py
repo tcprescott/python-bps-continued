@@ -33,6 +33,7 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 	"""
 	Measure the match between blocksrc and target at these offsets.
 	"""
+	result = []
 
 	# First, measure backwards.
 	while True:
@@ -49,9 +50,9 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 		sourceoffset -= 1
 
 	if pendingTargetReadSize:
-		yield ops.TargetRead(
+		result.append(ops.TargetRead(
 				target[targetoffset:targetoffset+pendingTargetReadSize]
-			)
+			))
 
 		targetoffset += pendingTargetReadSize
 
@@ -64,26 +65,11 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 		if targetoffset + bytespan >= len(target): break
 
 	if op is ops.SourceCopy and sourceoffset == targetoffset:
-		yield ops.SourceRead(bytespan)
+		result.append(ops.SourceRead(bytespan))
 	else:
-		yield op(bytespan, sourceoffset)
+		result.append(op(bytespan, sourceoffset))
 
-
-def iter_candidate_ops(pendingTargetReadSize, blocksrc, offsetlist, target,
-		targetoffset, op):
-	"""
-	Yield operations that encode the block at targetoffset in the target.
-	"""
-	# Find all the offsets in blocksrc where the given block occurs.
-	for sourceoffset in offsetlist:
-		yield list(
-				measure_op(
-					pendingTargetReadSize,
-					blocksrc, sourceoffset,
-					target, targetoffset,
-					op,
-				)
-			)
+	return result
 
 
 def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
@@ -154,20 +140,24 @@ def diff_bytearrays(source, target, metadata=""):
 			block = target[blockstart:blockend]
 
 			# Any matching blocks anywhere in the source buffer are candidates.
-			candidates.extend(iter_candidate_ops(
-					pendingTargetReadSize + extraOffset,
-					source, sourcemap.get(block, []),
-					target, targetWriteOffset,
-					ops.SourceCopy)
+			candidates.extend(
+					measure_op(
+						pendingTargetReadSize + extraOffset,
+						source, sourceOffset,
+						target, targetWriteOffset,
+						ops.SourceCopy,
+					) for sourceOffset in sourcemap.get(block, [])
 				)
 
 			# Any matching blocks in the target buffer that we've added to the
 			# targetmap so far are candidates.
-			candidates.extend(iter_candidate_ops(
-					pendingTargetReadSize + extraOffset,
-					target, targetmap.get(block, []),
-					target, targetWriteOffset,
-					ops.TargetCopy)
+			candidates.extend(
+					measure_op(
+						pendingTargetReadSize + extraOffset,
+						target, targetOffset,
+						target, targetWriteOffset,
+						ops.TargetCopy,
+					) for targetOffset in targetmap.get(block, [])
 				)
 
 		if not candidates:

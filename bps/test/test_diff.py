@@ -55,102 +55,114 @@ class TestIterBlocks(unittest.TestCase):
 			], list(diff.iter_blocks(source, 3)))
 
 
-class TestIterCandidateOps(unittest.TestCase):
+class TestMeasureOp(unittest.TestCase):
 
 	def testExactlyMatchingBlocks(self):
 		"""
-		iter_candidate_ops yields blocks that match, if there are any.
+		measure_op yields a matching block.
 		"""
-		candidates = diff.iter_candidate_ops(
+		result = diff.measure_op(
 				0,
-				b'aAbAa', [1, 3],
+				b'aAbAa', 1,
 				b'xxAx', 2,
 				ops.SourceCopy,
 			)
 
 		self.assertEqual(
-				[ [ops.SourceCopy(1, 1)], [ops.SourceCopy(1, 3)], ],
-				list(candidates),
+				[ops.SourceCopy(1, 1)],
+				result,
 			)
 
-	def testExtendableBlocks(self):
+	def testExtendBlocksForward(self):
 		"""
-		iter_candidate_ops extends blocks, where possible.
+		measure_op extends matches forward as far as possible.
 		"""
-		candidates = diff.iter_candidate_ops(
+		result = diff.measure_op(
 				0,
-				# The match at offset 1 matches for 2 bytes, but the match at
-				# offset 3 matches for 3 bytes.
-				b'xABABC', [1, 3],
-				b'xxABCD', 2,
+				b'xABCD', 1,
+				b'xxABC', 2,
 				ops.SourceCopy,
 			)
 
 		self.assertEqual(
-				[ [ops.SourceCopy(2, 1)], [ops.SourceCopy(3, 3)] ],
-				list(candidates),
+				[ops.SourceCopy(3, 1)],
+				result,
+			)
+
+	def testExtendBlocksBackward(self):
+		"""
+		measure_op extends blocks backward up to pendingTargetReadSize bytes.
+		"""
+		result = diff.measure_op(
+				5,
+				b'ABCDEFGHIJK', 7,
+				#        ^
+				b'xxABCDEFGHI', 9-5,
+				#          ^
+				ops.SourceCopy,
+			)
+
+		self.assertEqual(
+				[ops.SourceCopy(7, 2)],
+				result,
 			)
 
 	def testSourceRead(self):
 		"""
-		iter_candidate_ops yields SourceRead ops when possible.
+		measure_op yields SourceRead ops when possible.
 		"""
-		candidates = diff.iter_candidate_ops(
+		result = diff.measure_op(
 				0,
-				# Because the first match is at the same offset in the source
-				# and target buffers, we can represent it with a SourceRead
+				# Because the match is at the same offset in the source and
+				# target buffers, we can represent it with a SourceRead
 				# operation.
-				b'xABABC', [1, 3],
+				b'xABABC', 1,
 				b'xABCD', 1,
 				ops.SourceCopy,
 			)
 
 		self.assertEqual(
-				[ [ops.SourceRead(2)], [ops.SourceCopy(3, 3)] ],
-				list(candidates),
+				[ops.SourceRead(2)],
+				result,
 			)
 
 	def testTargetCopy(self):
 		"""
-		iter_candidate_ops can also generate TargetCopy instructions.
+		measure_op can also generate TargetCopy instructions.
 		"""
 		target = b'xAxABxABC'
 		#                ^
-		targetWriteOffset = 6
 
-		candidates = diff.iter_candidate_ops(
+		result = diff.measure_op(
 				0,
-				target, [1, 3],
-				target, targetWriteOffset,
+				target, 3,
+				target, 6,
 				ops.TargetCopy,
 			)
 
 		self.assertEqual(
-				[ [ops.TargetCopy(1, 1)], [ops.TargetCopy(2, 3)] ],
-				list(candidates),
+				[ops.TargetCopy(2, 3)],
+				result,
 			)
 
 	def testPendingTargetRead(self):
 		"""
-		iter_candidate_ops includes a TargetRead if there's pending bytes.
+		measure_op includes a TargetRead if there's pending bytes.
 		"""
 		source = b'xBBBBBBB'
 		target = b'xAAABBBB'
 		#              ^
-		targetWriteOffset = 4
 
-		candidates = diff.iter_candidate_ops(
+		result = diff.measure_op(
 				3,
-				source, [4],
+				source, 4,
 				target, 1,
 				ops.SourceCopy,
 			)
 
 		self.assertEqual(
-				[
-					[ops.TargetRead(b'AAA'), ops.SourceRead(4)],
-				],
-				list(candidates),
+				[ops.TargetRead(b'AAA'), ops.SourceRead(4)],
+				result,
 			)
 
 
