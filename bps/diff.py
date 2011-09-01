@@ -14,7 +14,6 @@ For more information about the basic algorithm used here, see the article
 	https://gitorious.org/python-blip/pages/IntroToDeltaEncoding
 
 """
-from itertools import chain
 from zlib import crc32
 from bps import operations as ops
 from bps.util import BlockMap
@@ -80,11 +79,6 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 
 
 def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
-	# A special case so that we can feed max() a non-empty list even if we have
-	# no candidates.
-	if oplist is None:
-		return 0
-
 	total_bytespan = 0
 	total_encoding_size = 0
 
@@ -145,48 +139,45 @@ def diff_bytearrays(source, target, metadata=""):
 
 	while targetWriteOffset + pendingTargetReadSize < len(target):
 		# The best list of operations we've seen so far.
-		bestoplist = None
+		bestOpList = None
+		bestOpEfficiency = 0
 
 		for extraOffset in range(blocksize):
 			blockstart = targetWriteOffset + pendingTargetReadSize + extraOffset
 			blockend = blockstart + blocksize
 			block = target[blockstart:blockend]
 
-			candidates = chain(
-					# Start with the best list of operations we've seen so far.
-					[bestoplist],
-
-					# Any matching blocks anywhere in the source buffer are
-					# candidates.
-					(
-						measure_op(
-							pendingTargetReadSize + extraOffset,
-							source, sourceOffset,
-							target, targetWriteOffset,
-							ops.SourceCopy,
-						) for sourceOffset in sourcemap.get(block, [])
-					),
-
-					# Any matching blocks in the target buffer that we've added
-					# to the targetmap so far are candidates.
-					(
-						measure_op(
-							pendingTargetReadSize + extraOffset,
-							target, targetOffset,
-							target, targetWriteOffset,
-							ops.TargetCopy,
-						) for targetOffset in targetmap.get(block, [])
+			for sourceOffset in sourcemap.get(block, []):
+				candidate = measure_op(
+						pendingTargetReadSize + extraOffset,
+						source, sourceOffset,
+						target, targetWriteOffset,
+						ops.SourceCopy,
 					)
-				)
 
-			# Compare all these candidates and find a new best list of
-			# operations.
-			bestoplist = max(candidates,
-					key=lambda x: op_efficiency(x, lastSourceCopyOffset,
-						lastTargetCopyOffset),
-				)
+				efficiency = op_efficiency(candidate,
+						lastSourceCopyOffset, lastTargetCopyOffset)
 
-		if bestoplist is None:
+				if efficiency > bestOpEfficiency:
+					bestOpList = candidate
+					bestOpEfficiency = efficiency
+
+			for targetOffset in targetmap.get(block, []):
+				candidate = measure_op(
+						pendingTargetReadSize + extraOffset,
+						target, targetOffset,
+						target, targetWriteOffset,
+						ops.TargetCopy,
+					)
+
+				efficiency = op_efficiency(candidate,
+						lastSourceCopyOffset, lastTargetCopyOffset)
+
+				if efficiency > bestOpEfficiency:
+					bestOpList = candidate
+					bestOpEfficiency = efficiency
+
+		if bestOpList is None:
 			# We can't find a way to encode this block, so we'll have to issue
 			# a TargetRead... later. Because the extraOffset loop above has
 			# tested up to (blocksize-1) blocks forward, we can advance by
@@ -194,7 +185,7 @@ def diff_bytearrays(source, target, metadata=""):
 			pendingTargetReadSize += blocksize
 			continue
 
-		for op in bestoplist:
+		for op in bestOpList:
 			yield op
 
 			targetWriteOffset += op.bytespan
