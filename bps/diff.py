@@ -58,12 +58,18 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 		targetoffset += pendingTargetReadSize
 
 	# Next, measure forwards.
+
+	# We're going to be checking these values a lot during this loop, so cache
+	# them instead of doing a function call each time.
+	blocksrcsize = len(blocksrc)
+	targetsize = len(target)
+
 	bytespan = 0
 	while blocksrc[sourceoffset+bytespan] == target[targetoffset+bytespan]:
 		bytespan += 1
 
-		if sourceoffset + bytespan >= len(blocksrc): break
-		if targetoffset + bytespan >= len(target): break
+		if sourceoffset + bytespan >= blocksrcsize: break
+		if targetoffset + bytespan >= targetsize: break
 
 	if op is ops.SourceCopy and sourceoffset == targetoffset:
 		result.append(ops.SourceRead(bytespan))
