@@ -154,7 +154,7 @@ def bps_progress(iterable):
 		now = clock()
 		if now > nextupdate:
 			sys.stderr.write(
-					"\rWorking... {0:6.2f}%".format(100 * curpos / total)
+					"\rWorking... {0:6.3f}%".format(100 * curpos / total)
 				)
 			sys.stderr.flush()
 			nextupdate = now + 1 # Update at most once per second
