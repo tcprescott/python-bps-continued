@@ -33,47 +33,55 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 	"""
 	Measure the match between blocksrc and target at these offsets.
 	"""
+	# The various parameters line up something like this:
+	#
+	#    v-- sourceoffset
+	# ...ABCDEFGHI... <-- blocksrc
+	#
+	#    ___- pendingTargetReadSize
+	# ...xxxABCDEF... <-- target
+	#       ^-- targetOffset
+	#
+
 	result = []
 
-	# First, measure backwards.
-	while True:
-		if sourceoffset <= 0: break
-		if targetoffset + pendingTargetReadSize <= 0: break
-		if pendingTargetReadSize <= 0: break
+	# Measure how far back the source and target files match from these
+	# offsets.
+	backspan = 0
 
-		prevsourcebyte = blocksrc[sourceoffset-1]
-		prevtargetbyte = target[targetoffset+pendingTargetReadSize-1]
+	maxspan = min(sourceoffset, targetoffset, pendingTargetReadSize+1)
 
-		if prevsourcebyte != prevtargetbyte: break
+	for backspan in range(maxspan):
+		if blocksrc[sourceoffset-backspan-1] != target[targetoffset-backspan-1]:
+			break
 
-		pendingTargetReadSize -= 1
-		sourceoffset -= 1
+	sourceoffset -= backspan
+	targetoffset -= backspan
+	pendingTargetReadSize -= backspan
 
 	if pendingTargetReadSize:
 		result.append(ops.TargetRead(
-				target[targetoffset:targetoffset+pendingTargetReadSize]
+				target[targetoffset-pendingTargetReadSize:targetoffset]
 			))
 
-		targetoffset += pendingTargetReadSize
+	# Measure how far forward the source and target files are aligned.
+	forespan = 0
 
-	# Next, measure forwards.
+	sourcespan = len(blocksrc) - sourceoffset
+	targetspan = len(target) - targetoffset
+	maxspan = min(sourcespan, targetspan)
 
-	# We're going to be checking these values a lot during this loop, so cache
-	# them instead of doing a function call each time.
-	blocksrcsize = len(blocksrc)
-	targetsize = len(target)
-
-	bytespan = 0
-	while blocksrc[sourceoffset+bytespan] == target[targetoffset+bytespan]:
-		bytespan += 1
-
-		if sourceoffset + bytespan >= blocksrcsize: break
-		if targetoffset + bytespan >= targetsize: break
+	for forespan in range(maxspan):
+		if blocksrc[sourceoffset+forespan] != target[targetoffset+forespan]:
+			break
+	else:
+		# We matched right up to the end of the file.
+		forespan += 1
 
 	if op is ops.SourceCopy and sourceoffset == targetoffset:
-		result.append(ops.SourceRead(bytespan))
+		result.append(ops.SourceRead(forespan))
 	else:
-		result.append(op(bytespan, sourceoffset))
+		result.append(op(forespan, sourceoffset))
 
 	return result
 
@@ -151,7 +159,7 @@ def diff_bytearrays(source, target, metadata=""):
 				candidate = measure_op(
 						pendingTargetReadSize + extraOffset,
 						source, sourceOffset,
-						target, targetWriteOffset,
+						target, blockstart,
 						ops.SourceCopy,
 					)
 
@@ -166,7 +174,7 @@ def diff_bytearrays(source, target, metadata=""):
 				candidate = measure_op(
 						pendingTargetReadSize + extraOffset,
 						target, targetOffset,
-						target, targetWriteOffset,
+						target, blockstart,
 						ops.TargetCopy,
 					)
 
@@ -204,10 +212,9 @@ def diff_bytearrays(source, target, metadata=""):
 			targetmap.add_block(newblock, offset)
 			nextTargetBlockOffset = offset + len(newblock)
 
-	if pendingTargetReadSize:
-		start = len(target) - pendingTargetReadSize
-		end = len(target)
-		yield ops.TargetRead(target[start:end])
+	if targetWriteOffset < len(target):
+		# Our pendingTargetReadSize goes all the way up to the end of the file.
+		yield ops.TargetRead(target[targetWriteOffset:])
 
 	yield ops.SourceCRC32(crc32(source))
 	yield ops.TargetCRC32(crc32(target))

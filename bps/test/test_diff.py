@@ -97,7 +97,7 @@ class TestMeasureOp(unittest.TestCase):
 				5,
 				b'ABCDEFGHIJK', 7,
 				#        ^
-				b'xxABCDEFGHI', 9-5,
+				b'xxABCDEFGHI', 9,
 				#          ^
 				ops.SourceCopy,
 			)
@@ -156,7 +156,7 @@ class TestMeasureOp(unittest.TestCase):
 		result = diff.measure_op(
 				3,
 				source, 4,
-				target, 1,
+				target, 4,
 				ops.SourceCopy,
 			)
 
