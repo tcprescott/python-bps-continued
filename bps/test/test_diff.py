@@ -175,7 +175,7 @@ class TestDiffBytearrays(unittest.TestCase):
 
 	def _runtest(self, source, target):
 		# Compare source and target
-		ops = diff.diff_bytearrays(source, target)
+		ops = diff.diff_bytearrays(2, source, target)
 
 		# Create a buffer to store the result of applying the patch.
 		result = bytearray(len(target))
@@ -218,9 +218,38 @@ class TestDiffBytearrays(unittest.TestCase):
 		"""
 		diff_bytearrays can store metadata if requested.
 		"""
-		ops = diff.diff_bytearrays(b'A', b'B', "metadata goes here")
+		ops = diff.diff_bytearrays(2, b'A', b'B', "metadata goes here")
 
 		header = next(ops)
 
 		self.assertEqual(header.metadata, "metadata goes here")
+
+	def testVariableBlockSize(self):
+		"""
+		Blocksize affects the generated delta encoding.
+		"""
+		source = b'ABABAB'
+		target = b'AAABBB'
+
+		self.assertEqual(
+				list(diff.diff_bytearrays(2, source, target)),
+				[
+					ops.Header(len(source), len(target)),
+					ops.TargetRead(b'AA'),
+					ops.SourceRead(2),
+					ops.TargetRead(b'BB'),
+					ops.SourceCRC32(0x76F34B4D),
+					ops.TargetCRC32(0x1A7E625E),
+				],
+			)
+
+		self.assertEqual(
+				list(diff.diff_bytearrays(3, source, target)),
+				[
+					ops.Header(len(source), len(target)),
+					ops.TargetRead(b'AAABBB'),
+					ops.SourceCRC32(0x76F34B4D),
+					ops.TargetCRC32(0x1A7E625E),
+				],
+			)
 

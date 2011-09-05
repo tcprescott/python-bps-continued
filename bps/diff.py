@@ -96,17 +96,10 @@ def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
 	return total_bytespan / total_encoding_size
 
 
-def diff_bytearrays(source, target, metadata=""):
+def diff_bytearrays(blocksize, source, target, metadata=""):
 	"""
 	Yield a sequence of patch operations that transform source to target.
 	"""
-	# Smaller block-sizes make for more efficient diffs, but a larger number of
-	# blocks uses more memory. Since we need to keep the block map for the
-	# source and target in memory at the same time, calculate a block-size that
-	# will give us about a 64-byte block on a 32MB file (since I know from
-	# experience that fits in my RAM).
-	blocksize = (len(source) + len(target)) // 1000000 + 1
-
 	yield ops.Header(len(source), len(target), metadata)
 
 	# We assume the entire source file will be available when applying this

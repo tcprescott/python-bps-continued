@@ -18,6 +18,15 @@ with open(sys.argv[1], 'rb') as source:
 with open(sys.argv[2], 'rb') as target:
 	targetdata = target.read()
 
-iterable = diff_bytearrays(sourcedata, targetdata)
+# Smaller block-sizes make for more efficient diffs, but a larger number of
+# blocks uses more memory. Since we need to keep the block map for the
+# source and target in memory at the same time, calculate a block-size that
+# will give us about a 64-byte block on a 32MB file (since I know from
+# experience that fits in my RAM).
+blocksize = (len(sourcedata) + len(targetdata)) // 1000000 + 1
+
+print("Using blocks of {0} bytes".format(blocksize), file=sys.stderr)
+
+iterable = diff_bytearrays(blocksize, sourcedata, targetdata)
 
 write_bps(bps_progress(iterable), sys.stdout.buffer)
