@@ -28,7 +28,7 @@ def iter_blocks(data, blocksize):
 		offset += len(block)
 
 
-def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
+def measure_op(targetWriteOffset, blocksrc, sourceoffset, target,
 		targetoffset, op):
 	"""
 	Measure the match between blocksrc and target at these offsets.
@@ -38,7 +38,7 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 	#    v-- sourceoffset
 	# ...ABCDEFGHI... <-- blocksrc
 	#
-	#    ___- pendingTargetReadSize
+	#    v-- targetWriteOffset
 	# ...xxxABCDEF... <-- target
 	#       ^-- targetOffset
 	#
@@ -49,7 +49,7 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 	# offsets.
 	backspan = 0
 
-	maxspan = min(sourceoffset, targetoffset, pendingTargetReadSize+1)
+	maxspan = min(sourceoffset, targetoffset-targetWriteOffset+1)
 
 	for backspan in range(maxspan):
 		if blocksrc[sourceoffset-backspan-1] != target[targetoffset-backspan-1]:
@@ -57,12 +57,9 @@ def measure_op(pendingTargetReadSize, blocksrc, sourceoffset, target,
 
 	sourceoffset -= backspan
 	targetoffset -= backspan
-	pendingTargetReadSize -= backspan
 
-	if pendingTargetReadSize:
-		result.append(ops.TargetRead(
-				target[targetoffset-pendingTargetReadSize:targetoffset]
-			))
+	if targetWriteOffset < targetoffset:
+		result.append(ops.TargetRead(target[targetWriteOffset:targetoffset]))
 
 	# Measure how far forward the source and target files are aligned.
 	forespan = 0
@@ -118,8 +115,15 @@ def diff_bytearrays(source, target, metadata=""):
 	for block, offset in iter_blocks(source, blocksize):
 		sourcemap.add_block(block, offset)
 
-	# Points at the part of the target buffer we're trying to encode.
+	# Points at the next byte of the target buffer that needs to be encoded.
 	targetWriteOffset = 0
+
+	# Points at the next byte of the target buffer we're searching for
+	# encodings for. If we can't find an encoding for a particular byte, we'll
+	# leave targetWriteOffset alone and increment this offset, on the off
+	# chance that we find a new encoding that we can extend backwards to
+	# targetWriteOffset.
+	targetEncodingOffset = 0
 
 	# Points at the byte after the last byte written by the most recent
 	# SourceCopy operation.
@@ -140,24 +144,21 @@ def diff_bytearrays(source, target, metadata=""):
 	# Points to the byte just beyond the most recent block added to targetmap;
 	# the difference between this and targetWriteOffset measures the 'some lag'
 	# described above.
-	nextTargetBlockOffset = 0
+	nextTargetMapBlockOffset = 0
 
-	# The number of bytes to be added to be written via TargetRead.
-	pendingTargetReadSize = 0
-
-	while targetWriteOffset + pendingTargetReadSize < len(target):
+	while targetEncodingOffset < len(target):
 		# The best list of operations we've seen so far.
 		bestOpList = None
 		bestOpEfficiency = 0
 
 		for extraOffset in range(blocksize):
-			blockstart = targetWriteOffset + pendingTargetReadSize + extraOffset
+			blockstart = targetEncodingOffset + extraOffset
 			blockend = blockstart + blocksize
 			block = target[blockstart:blockend]
 
 			for sourceOffset in sourcemap.get(block, []):
 				candidate = measure_op(
-						pendingTargetReadSize + extraOffset,
+						targetWriteOffset,
 						source, sourceOffset,
 						target, blockstart,
 						ops.SourceCopy,
@@ -172,7 +173,7 @@ def diff_bytearrays(source, target, metadata=""):
 
 			for targetOffset in targetmap.get(block, []):
 				candidate = measure_op(
-						pendingTargetReadSize + extraOffset,
+						targetWriteOffset,
 						target, targetOffset,
 						target, blockstart,
 						ops.TargetCopy,
@@ -190,7 +191,7 @@ def diff_bytearrays(source, target, metadata=""):
 			# a TargetRead... later. Because the extraOffset loop above has
 			# tested up to (blocksize-1) blocks forward, we can advance by
 			# blocksize.
-			pendingTargetReadSize += blocksize
+			targetEncodingOffset += blocksize
 			continue
 
 		for op in bestOpList:
@@ -203,17 +204,19 @@ def diff_bytearrays(source, target, metadata=""):
 			if isinstance(op, ops.SourceCopy):
 				lastSourceCopyOffset = op.offset + op.bytespan
 
-		pendingTargetReadSize = 0
+		# The next block we want to encode starts after the bytes we've
+		# written.
+		targetEncodingOffset = targetWriteOffset
 
 		# If it's been more than BLOCKSIZE bytes since we added a block to
 		# targetmap, process the backlog.
-		while (targetWriteOffset - nextTargetBlockOffset) >= blocksize:
+		while (targetWriteOffset - nextTargetMapBlockOffset) >= blocksize:
 			newblock, offset = next(targetblocks)
 			targetmap.add_block(newblock, offset)
-			nextTargetBlockOffset = offset + len(newblock)
+			nextTargetMapBlockOffset = offset + len(newblock)
 
 	if targetWriteOffset < len(target):
-		# Our pendingTargetReadSize goes all the way up to the end of the file.
+		# It's TargetRead all the way up to the end of the file.
 		yield ops.TargetRead(target[targetWriteOffset:])
 
 	yield ops.SourceCRC32(crc32(source))

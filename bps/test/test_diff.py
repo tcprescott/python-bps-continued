@@ -62,7 +62,7 @@ class TestMeasureOp(unittest.TestCase):
 		measure_op yields a matching block.
 		"""
 		result = diff.measure_op(
-				0,
+				2,
 				b'aAbAa', 1,
 				b'xxAx', 2,
 				ops.SourceCopy,
@@ -78,7 +78,7 @@ class TestMeasureOp(unittest.TestCase):
 		measure_op extends matches forward as far as possible.
 		"""
 		result = diff.measure_op(
-				0,
+				2,
 				b'xABCD', 1,
 				b'xxABC', 2,
 				ops.SourceCopy,
@@ -94,7 +94,7 @@ class TestMeasureOp(unittest.TestCase):
 		measure_op extends blocks backward up to pendingTargetReadSize bytes.
 		"""
 		result = diff.measure_op(
-				5,
+				4,
 				b'ABCDEFGHIJK', 7,
 				#        ^
 				b'xxABCDEFGHI', 9,
@@ -112,7 +112,7 @@ class TestMeasureOp(unittest.TestCase):
 		measure_op yields SourceRead ops when possible.
 		"""
 		result = diff.measure_op(
-				0,
+				1,
 				# Because the match is at the same offset in the source and
 				# target buffers, we can represent it with a SourceRead
 				# operation.
@@ -134,7 +134,7 @@ class TestMeasureOp(unittest.TestCase):
 		#                ^
 
 		result = diff.measure_op(
-				0,
+				6,
 				target, 3,
 				target, 6,
 				ops.TargetCopy,
@@ -154,7 +154,7 @@ class TestMeasureOp(unittest.TestCase):
 		#              ^
 
 		result = diff.measure_op(
-				3,
+				1,
 				source, 4,
 				target, 4,
 				ops.SourceCopy,
