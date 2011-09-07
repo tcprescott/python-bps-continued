@@ -366,3 +366,39 @@ class SourceCRC32(_BaseCRC32):
 
 class TargetCRC32(_BaseCRC32):
 	pass
+
+
+class OpBuffer:
+	"""
+	Represents a mutable sequence of patch operations.
+	"""
+
+	def __init__(self):
+		self._buf = []
+
+	def __iter__(self):
+		return iter(self._buf)
+
+	def append(self, operation, rollback=0):
+
+		# If our rollback value is big enough, remove entire operations from
+		# the buffer.
+		while self._buf and rollback >= self._buf[-1].bytespan:
+			prevop = self._buf.pop()
+			rollback -= prevop.bytespan
+
+		# If there's any rolling back left to do...
+		if rollback:
+			if self._buf and isinstance(self._buf[-1], TargetRead):
+				# The last un-rolled-back operation is a TargetRead, so we
+				# should bite the end off it and replace those bites with our
+				# shiny new efficient operation.
+				self._buf[-1].shrink(-rollback)
+			else:
+				# The last un-rolled-back operation is either a *Copy or
+				# a SourceRead (which is effectively a kind of Copy). Since it
+				# doesn't really matter which operation gets trimmed to fit,
+				# let's trim the front off the new one.
+				operation.shrink(rollback)
+
+		self._buf.append(operation)

@@ -569,5 +569,155 @@ class TestTargetCRC32(CRCOperationTestsMixIn, unittest.TestCase):
 	constructor = ops.TargetCRC32
 
 
+class TestOpBuffer(unittest.TestCase):
+
+	def test_empty(self):
+		"""
+		OpBuffer starts off empty.
+		"""
+		ob = ops.OpBuffer()
+
+		self.assertEqual([], list(ob))
+
+	def test_append(self):
+		"""
+		OpBuffer.append() adds an operation to the buffer.
+		"""
+		ob = ops.OpBuffer()
+
+		expected = [
+				ops.TargetRead(b'ABC'),
+				ops.SourceRead(3),
+			]
+
+		for op in expected:
+			ob.append(op)
+
+		self.assertEqual(expected, list(ob))
+
+	def append_requires_advancement(self):
+		"""
+		The rollback value must be less than the operation's bytespan.
+		"""
+		ob = ops.OpBuffer()
+
+		self.assertRaisesRegex(ValueError, "10 too large",
+				ob.append, ops.SourceRead(10), 10)
+
+	def test_append_with_rollback(self):
+		"""
+		OpBuffer.append() with a rollback value eats previous ops.
+		"""
+		ob = ops.OpBuffer()
+
+		ob.append(ops.TargetRead(b'ABC') )
+		ob.append(ops.SourceCopy(3, 0)   )
+		ob.append(ops.SourceRead(6),    3)
+
+		self.assertEqual(
+				[
+					ops.TargetRead(b'ABC'),
+					ops.SourceRead(6),
+				],
+				list(ob),
+			)
+
+	def test_rollback_multiple_ops(self):
+		"""
+		Rollback can eat multiple previous ops.
+		"""
+		ob = ops.OpBuffer()
+
+		ob.append(ops.TargetRead(b'ABC') )
+		ob.append(ops.SourceCopy(3, 0)   )
+		ob.append(ops.TargetRead(b'GHI') )
+		ob.append(ops.SourceRead(7),    6)
+
+		self.assertEqual(
+				[
+					ops.TargetRead(b'ABC'),
+					ops.SourceRead(7),
+				],
+				list(ob),
+			)
+
+	def test_rollback_past_the_beginning(self):
+		"""
+		Trying to rollback past the first op leads to truncation.
+		"""
+		ob = ops.OpBuffer()
+		ob.append(ops.SourceRead(6), 3)
+
+		self.assertEqual([ops.SourceRead(3)], list(ob))
+
+	def test_partial_TargetRead_rollback(self):
+		"""
+		A partial rollback eats as much TargetRead as possible.
+		"""
+		ob = ops.OpBuffer()
+
+		ob.append(ops.TargetRead(b'ABCDEF'))
+		ob.append(ops.SourceRead(6), 4)
+
+		self.assertEqual(
+				[
+					ops.TargetRead(b'AB'),
+					ops.SourceRead(6),
+				],
+				list(ob),
+			)
+
+	def test_partial_SourceRead_rollback(self):
+		"""
+		There's no point in a new copy operation eating any SourceRead bytes.
+		"""
+		ob = ops.OpBuffer()
+
+		ob.append(ops.SourceRead(6))
+		ob.append(ops.SourceCopy(6, 0), 3)
+
+		self.assertEqual(
+				[
+					ops.SourceRead(6),
+					ops.SourceCopy(3, 3),
+				],
+				list(ob),
+			)
+
+	def test_partial_SourceCopy_rollback(self):
+		"""
+		There's no point in a new copy operation eating any SourceCopy bytes.
+		"""
+		ob = ops.OpBuffer()
+
+		ob.append(ops.SourceCopy(6, 0))
+		ob.append(ops.SourceRead(6), 3)
+
+		self.assertEqual(
+				[
+					ops.SourceCopy(6, 0),
+					ops.SourceRead(3),
+				],
+				list(ob),
+			)
+
+	def test_partial_TargetCopy_rollback(self):
+		"""
+		There's no point in a new copy operation eating any TargetCopy bytes.
+		"""
+		ob = ops.OpBuffer()
+
+		ob.append(ops.TargetCopy(6, 0))
+		ob.append(ops.TargetCopy(6, 0), 3)
+
+		self.assertEqual(
+				[
+					ops.TargetCopy(6, 0),
+					ops.TargetCopy(3, 3),
+				],
+				list(ob),
+			)
+
+
 if __name__ == "__main__":
 	unittest.main()
