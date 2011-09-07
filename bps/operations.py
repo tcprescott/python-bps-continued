@@ -43,6 +43,16 @@ class BaseOperation:
 		ValueError if the other operation isn't contiguous with this one.
 		"""
 
+	def shrink(self, length):
+		"""
+		Reduce the bytespan of this operation by the given amount.
+
+		If length is positive, shrinkage will occur from the front. If length
+		is negative, shrinkage will occur from the end (much like Python's
+		slicing operators). Length should never be 0, and abs(length) should
+		never be greater than or equal to the bytespan property.
+		"""
+
 
 class Header(BaseOperation):
 
@@ -95,6 +105,11 @@ class Header(BaseOperation):
 
 		return b''.join(res)
 
+	def shrink(self, length):
+		raise TypeError(
+				"Cannot shrink a header, let alone by {0!r}".format(length)
+			)
+
 
 class SourceRead(BaseOperation):
 
@@ -130,6 +145,17 @@ class SourceRead(BaseOperation):
 		return util.encode_var_int(
 				(self.bytespan - 1) << C.OPCODESHIFT | C.OP_SOURCEREAD
 			)
+
+	def shrink(self, length):
+		if length == 0:
+			raise ValueError(
+					"Cannot shrink: {0!r} is too small".format(length))
+
+		if abs(length) >= self.bytespan:
+			raise ValueError(
+					"Cannot shrink: {0!r} is too large".format(length))
+
+		self.bytespan -= abs(length)
 
 
 class TargetRead(BaseOperation):
@@ -185,6 +211,20 @@ class TargetRead(BaseOperation):
 				payload,
 			])
 
+	def shrink(self, length):
+		if length == 0:
+			raise ValueError(
+					"Cannot shrink: {0!r} is too small".format(length))
+
+		if abs(length) >= self.bytespan:
+			raise ValueError(
+					"Cannot shrink: {0!r} is too large".format(length))
+
+		if length > 0:
+			self._payload = [self.payload[length:]]
+		else:
+			self._payload = [self.payload[:length]]
+
 
 class _BaseCopy(BaseOperation):
 
@@ -230,6 +270,21 @@ class _BaseCopy(BaseOperation):
 				)
 
 		self.bytespan += other.bytespan
+
+	def shrink(self, length):
+		if length == 0:
+			raise ValueError(
+					"Cannot shrink: {0!r} is too small".format(length))
+
+		if abs(length) >= self.bytespan:
+			raise ValueError(
+					"Cannot shrink: {0!r} is too large".format(length))
+
+		if length > 0:
+			self.bytespan -= length
+			self.offset += length
+		else:
+			self.bytespan += length
 
 
 class SourceCopy(_BaseCopy):
@@ -298,6 +353,11 @@ class _BaseCRC32(BaseOperation):
 
 	def encode(self, ignored, ignored2):
 		return pack("<I", self.value)
+
+	def shrink(self, length):
+		raise TypeError(
+				"Cannot shrink {0!r}, let alone by {1!r}".format(self, length)
+			)
 
 
 class SourceCRC32(_BaseCRC32):

@@ -84,6 +84,15 @@ class TestHeader(unittest.TestCase):
 		op = ops.Header(1, 1, "1")
 		self.assertEqual(op.marker, None)
 
+	def test_cannot_shrink(self):
+		"""
+		The header op cannot be shrunk.
+		"""
+		op = ops.Header(1, 2, "3")
+
+		self.assertRaisesRegex(TypeError, "Cannot shrink a header",
+				op.shrink, 5)
+
 
 class TestSourceRead(unittest.TestCase):
 
@@ -156,6 +165,45 @@ class TestSourceRead(unittest.TestCase):
 		"""
 		op = ops.SourceRead(1)
 		self.assertEqual(op.marker, 'sr')
+
+	def test_shrink_by_zero(self):
+		"""
+		Shrinking by zero is not allowed.
+		"""
+		op = ops.SourceRead(10)
+
+		self.assertRaisesRegex(ValueError, "0 is too small",
+				op.shrink, 0)
+
+	def test_shrink_by_bytespan(self):
+		"""
+		Shrinking away to nothing (or less!) is not allowed, from either end.
+		"""
+		op = ops.SourceRead(10)
+
+		self.assertRaisesRegex(ValueError, "10 is too large",
+				op.shrink, 10)
+
+		self.assertRaisesRegex(ValueError, "-10 is too large",
+				op.shrink, -10)
+
+	def test_shrink_from_front(self):
+		"""
+		SourceRead ops can be shrunk from the front.
+		"""
+		op = ops.SourceRead(10)
+		op.shrink(5)
+
+		self.assertEqual(ops.SourceRead(5), op)
+
+	def test_shrink_from_behind(self):
+		"""
+		SourceRead ops can be shrunk from behind.
+		"""
+		op = ops.SourceRead(10)
+		op.shrink(-5)
+
+		self.assertEqual(ops.SourceRead(5), op)
 
 
 class TestTargetRead(unittest.TestCase):
@@ -234,6 +282,45 @@ class TestTargetRead(unittest.TestCase):
 		op = ops.TargetRead(b'A')
 		self.assertEqual(op.marker, 'tR')
 
+	def test_shrink_by_zero(self):
+		"""
+		Shrinking by zero is not allowed.
+		"""
+		op = ops.TargetRead(b'ABCDEFGHIJ')
+
+		self.assertRaisesRegex(ValueError, "0 is too small",
+				op.shrink, 0)
+
+	def test_shrink_by_bytespan(self):
+		"""
+		Shrinking away to nothing (or less!) is not allowed, from either end.
+		"""
+		op = ops.TargetRead(b'ABCDEFGHIJ')
+
+		self.assertRaisesRegex(ValueError, "10 is too large",
+				op.shrink, 10)
+
+		self.assertRaisesRegex(ValueError, "-10 is too large",
+				op.shrink, -10)
+
+	def test_shrink_from_front(self):
+		"""
+		TargetRead ops can be shrunk from the front.
+		"""
+		op = ops.TargetRead(b'ABCDEFGHIJ')
+		op.shrink(5)
+
+		self.assertEqual(ops.TargetRead(b'FGHIJ'), op)
+
+	def test_shrink_from_behind(self):
+		"""
+		TargetRead ops can be shrunk from behind.
+		"""
+		op = ops.TargetRead(b'ABCDEFGHIJ')
+		op.shrink(-5)
+
+		self.assertEqual(ops.TargetRead(b'ABCDE'), op)
+
 
 class CopyOperationTestsMixIn:
 
@@ -303,6 +390,45 @@ class CopyOperationTestsMixIn:
 		self.assertNotEqual(op1, op4)
 
 		self.assertNotEqual(op1, (1, 1))
+
+	def test_shrink_by_zero(self):
+		"""
+		Shrinking by zero is not allowed.
+		"""
+		op = self.constructor(10, 10)
+
+		self.assertRaisesRegex(ValueError, "0 is too small",
+				op.shrink, 0)
+
+	def test_shrink_by_bytespan(self):
+		"""
+		Shrinking away to nothing (or less!) is not allowed, from either end.
+		"""
+		op = self.constructor(10, 10)
+
+		self.assertRaisesRegex(ValueError, "10 is too large",
+				op.shrink, 10)
+
+		self.assertRaisesRegex(ValueError, "-10 is too large",
+				op.shrink, -10)
+
+	def test_shrink_from_front(self):
+		"""
+		This op can be shrunk from the front.
+		"""
+		op = self.constructor(10, 10)
+		op.shrink(5)
+
+		self.assertEqual(self.constructor(5, 15), op)
+
+	def test_shrink_from_behind(self):
+		"""
+		This op can be shrunk from behind.
+		"""
+		op = self.constructor(10, 10)
+		op.shrink(-5)
+
+		self.assertEqual(self.constructor(5, 10), op)
 
 
 class TestSourceCopy(CopyOperationTestsMixIn, unittest.TestCase):
@@ -422,6 +548,15 @@ class CRCOperationTestsMixIn:
 		"""
 		op = self.constructor(1)
 		self.assertEqual(op.marker, None)
+
+	def test_cannot_shrink(self):
+		"""
+		CRC operations cannot be shrunk.
+		"""
+		op = self.constructor(1)
+
+		self.assertRaisesRegex(TypeError, "Cannot shrink",
+				op.shrink, 5)
 
 
 class TestSourceCRC32(CRCOperationTestsMixIn, unittest.TestCase):
