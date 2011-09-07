@@ -166,7 +166,19 @@ class TestBlockMap(unittest.TestCase):
 		bm.add_block(b'ABC', 30)
 		bm.add_block(b'ABC', 20)
 
-		self.assertEqual(sorted(bm[b'ABC']), [10, 20, 30])
+		self.assertEqual(sorted(bm.get_block(b'ABC')), [10, 20, 30])
+
+	def test_get_block(self):
+		"""
+		BlockMap.get_block() returns added offsets for the given block.
+		"""
+		bm = util.BlockMap()
+
+		self.assertEqual([], list(bm.get_block(b'ABC')))
+
+		bm.add_block(b'ABC', 27)
+
+		self.assertEqual([27], list(bm.get_block(b'ABC')))
 
 
 

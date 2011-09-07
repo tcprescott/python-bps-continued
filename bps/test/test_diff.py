@@ -165,6 +165,24 @@ class TestMeasureOp(unittest.TestCase):
 				result,
 			)
 
+	def testNoMatch(self):
+		"""
+		measure_op returns no ops if the source and target don't match.
+
+		This can happen for example if there's a hash collision.
+		"""
+		source = b'AAAAAA'
+		target = b'BBBBBB'
+
+		result = diff.measure_op(
+				0,
+				source, 0,
+				target, 0,
+				ops.SourceCopy,
+			)
+
+		self.assertEqual([], result)
+
 
 class TestDiffBytearrays(unittest.TestCase):
 	# Since the diff algorithm is based on heuristics, changes to the code can

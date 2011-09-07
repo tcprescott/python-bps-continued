@@ -75,10 +75,11 @@ def measure_op(targetWriteOffset, blocksrc, sourceoffset, target,
 		# We matched right up to the end of the file.
 		forespan += 1
 
-	if op is ops.SourceCopy and sourceoffset == targetoffset:
-		result.append(ops.SourceRead(forespan))
-	else:
-		result.append(op(forespan, sourceoffset))
+	if forespan:
+		if op is ops.SourceCopy and sourceoffset == targetoffset:
+			result.append(ops.SourceRead(forespan))
+		else:
+			result.append(op(forespan, sourceoffset))
 
 	return result
 
@@ -86,6 +87,9 @@ def measure_op(targetWriteOffset, blocksrc, sourceoffset, target,
 def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
 	total_bytespan = 0
 	total_encoding_size = 0
+
+	if not oplist:
+		return 0
 
 	for op in oplist:
 		total_bytespan += op.bytespan
@@ -149,7 +153,7 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 			blockend = blockstart + blocksize
 			block = target[blockstart:blockend]
 
-			for sourceOffset in sourcemap.get(block, []):
+			for sourceOffset in sourcemap.get_block(block):
 				candidate = measure_op(
 						targetWriteOffset,
 						source, sourceOffset,
@@ -164,7 +168,7 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 					bestOpList = candidate
 					bestOpEfficiency = efficiency
 
-			for targetOffset in targetmap.get(block, []):
+			for targetOffset in targetmap.get_block(block):
 				candidate = measure_op(
 						targetWriteOffset,
 						target, targetOffset,

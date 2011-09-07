@@ -133,11 +133,27 @@ def write_var_int(number, handle):
 	handle.write(encode_var_int(number))
 
 
-class BlockMap(dict):
+class BlockMap:
+
+	def __init__(self, buckets=(2**18-1)):
+		self._buckets = buckets
+		self._hasharray = [None] * buckets
 
 	def add_block(self, block, offset):
-		offsetlist = self.setdefault(block, array('L'))
-		offsetlist.append(offset)
+		index = hash(block) % self._buckets
+		oldarray = self._hasharray[index]
+		if oldarray is None:
+			self._hasharray[index] = array('L', [offset])
+		else:
+			oldarray.append(offset)
+
+	def get_block(self, block):
+		index = hash(block) % self._buckets
+		oldarray = self._hasharray[index]
+		if oldarray is None:
+			return []
+		else:
+			return oldarray
 
 
 def bps_progress(iterable):
