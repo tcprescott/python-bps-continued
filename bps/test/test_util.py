@@ -181,6 +181,5 @@ class TestBlockMap(unittest.TestCase):
 		self.assertEqual([27], list(bm.get_block(b'ABC')))
 
 
-
 if __name__ == "__main__":
 	unittest.main()
