@@ -124,6 +124,11 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 	# described above.
 	nextTargetMapBlockOffset = 0
 
+	# A place to store operations before we spit them out. This gives us an
+	# opportunity to replace operations if we later come across a better
+	# alternative encoding.
+	opbuf = ops.OpBuffer()
+
 	while targetEncodingOffset < len(target):
 		# Keeps track of the most efficient operation for encoding this
 		# particular offset that we've found so far.
@@ -198,17 +203,12 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 		# all the bytes from the end of the last block up to now.
 		if targetWriteOffset < targetEncodingOffset:
 			tr = ops.TargetRead(target[targetWriteOffset:targetEncodingOffset])
-			yield tr
+			opbuf.append(tr)
 			targetWriteOffset = targetEncodingOffset
 
-		# Because we can't (yet) rewind past targetEncodingOffset, slice off
-		# the front of this operation.
-		if bestOpBackSpan:
-			bestOp.shrink(bestOpBackSpan)
+		opbuf.append(bestOp, rollback=bestOpBackSpan)
 
-		yield bestOp
-
-		targetWriteOffset += bestOp.bytespan
+		targetWriteOffset += bestOpForeSpan
 
 		if isinstance(bestOp, ops.TargetCopy):
 			lastTargetCopyOffset = bestOp.offset + bestOp.bytespan
@@ -225,6 +225,9 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 			newblock, offset = next(targetblocks)
 			targetmap.add_block(newblock, offset)
 			nextTargetMapBlockOffset = offset + len(newblock)
+
+	for op in opbuf:
+		yield op
 
 	if targetWriteOffset < len(target):
 		# It's TargetRead all the way up to the end of the file.
