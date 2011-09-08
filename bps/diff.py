@@ -28,38 +28,33 @@ def iter_blocks(data, blocksize):
 		offset += len(block)
 
 
-def measure_op(targetWriteOffset, blocksrc, sourceoffset, target,
-		targetoffset, op):
+def measure_op(blocksrc, sourceoffset, target, targetoffset):
 	"""
 	Measure the match between blocksrc and target at these offsets.
 	"""
 	# The various parameters line up something like this:
 	#
-	#    v-- sourceoffset
-	# ...ABCDEFGHI... <-- blocksrc
+	#      v-- sourceoffset
+	# ...ABCDExGHI... <-- blocksrc
 	#
-	#    v-- targetWriteOffset
 	# ...xxxABCDEF... <-- target
-	#       ^-- targetOffset
+	#         ^-- targetOffset
 	#
-
-	result = []
+	# result: backspan = 2, forespan = 3
+	#
 
 	# Measure how far back the source and target files match from these
 	# offsets.
 	backspan = 0
 
-	maxspan = min(sourceoffset, targetoffset-targetWriteOffset+1)
+	# We need the +1 here because the test inside the loop is actually looking
+	# at the byte *before* the one pointed to by (sourceoffset-backspan), so
+	# we need our span to stretch that little bit further.
+	maxspan = min(sourceoffset, targetoffset) + 1
 
 	for backspan in range(maxspan):
 		if blocksrc[sourceoffset-backspan-1] != target[targetoffset-backspan-1]:
 			break
-
-	sourceoffset -= backspan
-	targetoffset -= backspan
-
-	if targetWriteOffset < targetoffset:
-		result.append(ops.TargetRead(target[targetWriteOffset:targetoffset]))
 
 	# Measure how far forward the source and target files are aligned.
 	forespan = 0
@@ -75,29 +70,15 @@ def measure_op(targetWriteOffset, blocksrc, sourceoffset, target,
 		# We matched right up to the end of the file.
 		forespan += 1
 
-	if forespan:
-		if op is ops.SourceCopy and sourceoffset == targetoffset:
-			result.append(ops.SourceRead(forespan))
-		else:
-			result.append(op(forespan, sourceoffset))
-
-	return result
+	return backspan, forespan
 
 
-def op_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
-	total_bytespan = 0
+def op_efficiency(op, lastSourceCopyOffset, lastTargetCopyOffset):
 	total_encoding_size = 0
 
-	if not oplist:
-		return 0
-
-	for op in oplist:
-		total_bytespan += op.bytespan
-		total_encoding_size += len(
-				op.encode(lastSourceCopyOffset, lastTargetCopyOffset)
-			)
-
-	return total_bytespan / total_encoding_size
+	return op.bytespan / len(
+			op.encode(lastSourceCopyOffset, lastTargetCopyOffset)
+		)
 
 
 def diff_bytearrays(blocksize, source, target, metadata=""):
@@ -145,64 +126,93 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 
 	while targetEncodingOffset < len(target):
 		# The best list of operations we've seen so far.
-		bestOpList = None
+		bestOp = None
 		bestOpEfficiency = 0
+		bestOpBackSpan = 0
 
-		for extraOffset in range(blocksize):
-			blockstart = targetEncodingOffset + extraOffset
-			blockend = blockstart + blocksize
-			block = target[blockstart:blockend]
+		blockend = targetEncodingOffset + blocksize
+		block = target[targetEncodingOffset:blockend]
 
-			for sourceOffset in sourcemap.get_block(block):
-				candidate = measure_op(
-						targetWriteOffset,
-						source, sourceOffset,
-						target, blockstart,
-						ops.SourceCopy,
+		for sourceOffset in sourcemap.get_block(block):
+			backspan, forespan = measure_op(
+					source, sourceOffset,
+					target, targetEncodingOffset,
+				)
+
+			if forespan == 0:
+				# This block actually doesn't occur at this sourceOffset after
+				# all. Perhaps it's a hash collision?
+				continue
+
+			if sourceOffset == targetEncodingOffset:
+				candidate = ops.SourceRead(backspan+forespan)
+			else:
+				candidate = ops.SourceCopy(
+						backspan+forespan,
+						sourceOffset-backspan,
 					)
 
-				efficiency = op_efficiency(candidate,
-						lastSourceCopyOffset, lastTargetCopyOffset)
+			efficiency = op_efficiency(candidate,
+					lastSourceCopyOffset, lastTargetCopyOffset)
 
-				if efficiency > bestOpEfficiency:
-					bestOpList = candidate
-					bestOpEfficiency = efficiency
+			if efficiency > bestOpEfficiency:
+				bestOp = candidate
+				bestOpEfficiency = efficiency
+				bestOpBackSpan = backspan
 
-			for targetOffset in targetmap.get_block(block):
-				candidate = measure_op(
-						targetWriteOffset,
-						target, targetOffset,
-						target, blockstart,
-						ops.TargetCopy,
-					)
+		for targetOffset in targetmap.get_block(block):
+			backspan, forespan = measure_op(
+					target, targetOffset,
+					target, targetEncodingOffset,
+				)
 
-				efficiency = op_efficiency(candidate,
-						lastSourceCopyOffset, lastTargetCopyOffset)
+			if forespan == 0:
+				# This block actually doesn't occur at this sourceOffset after
+				# all. Perhaps it's a hash collision?
+				continue
 
-				if efficiency > bestOpEfficiency:
-					bestOpList = candidate
-					bestOpEfficiency = efficiency
+			candidate = ops.TargetCopy(
+					backspan+forespan,
+					targetOffset-backspan,
+				)
 
-		if bestOpList is None:
+			efficiency = op_efficiency(candidate,
+					lastSourceCopyOffset, lastTargetCopyOffset)
+
+			if efficiency > bestOpEfficiency:
+				bestOp = candidate
+				bestOpEfficiency = efficiency
+				bestOpBackSpan = backspan
+
+		if bestOp is None:
 			# We can't find a way to encode this block, so we'll have to issue
-			# a TargetRead... later. Because the extraOffset loop above has
-			# tested up to (blocksize-1) blocks forward, we can advance by
-			# blocksize.
-			targetEncodingOffset += blocksize
+			# a TargetRead... later.
+			targetEncodingOffset += 1
 			continue
 
-		for op in bestOpList:
-			yield op
+		# We found an encoding for the target block, so issue a TargetRead for
+		# all the bytes from the end of the last block up to now.
+		if targetWriteOffset < targetEncodingOffset:
+			tr = ops.TargetRead(target[targetWriteOffset:targetEncodingOffset])
+			yield tr
+			targetWriteOffset = targetEncodingOffset
 
-			targetWriteOffset += op.bytespan
+		# Because we can't (yet) rewind past targetEncodingOffset, slice off
+		# the front of this operation.
+		if bestOpBackSpan:
+			bestOp.shrink(bestOpBackSpan)
 
-			if isinstance(op, ops.TargetCopy):
-				lastTargetCopyOffset = op.offset + op.bytespan
-			if isinstance(op, ops.SourceCopy):
-				lastSourceCopyOffset = op.offset + op.bytespan
+		yield bestOp
+
+		targetWriteOffset += bestOp.bytespan
+
+		if isinstance(bestOp, ops.TargetCopy):
+			lastTargetCopyOffset = bestOp.offset + bestOp.bytespan
+		if isinstance(bestOp, ops.SourceCopy):
+			lastSourceCopyOffset = bestOp.offset + bestOp.bytespan
 
 		# The next block we want to encode starts after the bytes we've
-		# written.
+		# just written.
 		targetEncodingOffset = targetWriteOffset
 
 		# If it's been more than BLOCKSIZE bytes since we added a block to

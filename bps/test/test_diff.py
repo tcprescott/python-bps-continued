@@ -62,14 +62,12 @@ class TestMeasureOp(unittest.TestCase):
 		measure_op yields a matching block.
 		"""
 		result = diff.measure_op(
-				2,
 				b'aAbAa', 1,
 				b'xxAx', 2,
-				ops.SourceCopy,
 			)
 
 		self.assertEqual(
-				[ops.SourceCopy(1, 1)],
+				(0, 1),
 				result,
 			)
 
@@ -77,93 +75,51 @@ class TestMeasureOp(unittest.TestCase):
 		"""
 		measure_op extends matches forward as far as possible.
 		"""
+		# Measure up to the first distance.
 		result = diff.measure_op(
-				2,
-				b'xABCD', 1,
-				b'xxABC', 2,
-				ops.SourceCopy,
+				b'xABCDE', 1,
+				b'xyABCx', 2,
 			)
 
 		self.assertEqual(
-				[ops.SourceCopy(3, 1)],
+				(0, 3),
+				result,
+			)
+
+		# Measure up to the end of either one of the strings.
+		result = diff.measure_op(
+				b'xABCD', 1,
+				b'xyABC', 2,
+			)
+
+		self.assertEqual(
+				(0, 3),
 				result,
 			)
 
 	def testExtendBlocksBackward(self):
 		"""
-		measure_op extends blocks backward up to pendingTargetReadSize bytes.
+		measure_op extends blocks backward as far as possible.
 		"""
+		# Measure back to the first difference.
 		result = diff.measure_op(
-				4,
+				b'yABCDEFGHIJ', 8,
+				#         ^
+				b'xxABCDEFGHI', 9,
+				#          ^
+			)
+
+		self.assertEqual( (7, 2), result)
+
+		# Measure back to the beginning of the string.
+		result = diff.measure_op(
 				b'ABCDEFGHIJK', 7,
 				#        ^
 				b'xxABCDEFGHI', 9,
 				#          ^
-				ops.SourceCopy,
 			)
 
-		self.assertEqual(
-				[ops.SourceCopy(7, 2)],
-				result,
-			)
-
-	def testSourceRead(self):
-		"""
-		measure_op yields SourceRead ops when possible.
-		"""
-		result = diff.measure_op(
-				1,
-				# Because the match is at the same offset in the source and
-				# target buffers, we can represent it with a SourceRead
-				# operation.
-				b'xABABC', 1,
-				b'xABCD', 1,
-				ops.SourceCopy,
-			)
-
-		self.assertEqual(
-				[ops.SourceRead(2)],
-				result,
-			)
-
-	def testTargetCopy(self):
-		"""
-		measure_op can also generate TargetCopy instructions.
-		"""
-		target = b'xAxABxABC'
-		#                ^
-
-		result = diff.measure_op(
-				6,
-				target, 3,
-				target, 6,
-				ops.TargetCopy,
-			)
-
-		self.assertEqual(
-				[ops.TargetCopy(2, 3)],
-				result,
-			)
-
-	def testPendingTargetRead(self):
-		"""
-		measure_op includes a TargetRead if there's pending bytes.
-		"""
-		source = b'xBBBBBBB'
-		target = b'xAAABBBB'
-		#              ^
-
-		result = diff.measure_op(
-				1,
-				source, 4,
-				target, 4,
-				ops.SourceCopy,
-			)
-
-		self.assertEqual(
-				[ops.TargetRead(b'AAA'), ops.SourceRead(4)],
-				result,
-			)
+		self.assertEqual( (7, 2), result)
 
 	def testNoMatch(self):
 		"""
@@ -175,13 +131,11 @@ class TestMeasureOp(unittest.TestCase):
 		target = b'BBBBBB'
 
 		result = diff.measure_op(
-				0,
-				source, 0,
-				target, 0,
-				ops.SourceCopy,
+				source, 4,
+				target, 4,
 			)
 
-		self.assertEqual([], result)
+		self.assertEqual((0, 0), result)
 
 
 class TestDiffBytearrays(unittest.TestCase):
