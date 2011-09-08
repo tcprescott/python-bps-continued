@@ -125,7 +125,8 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 	nextTargetMapBlockOffset = 0
 
 	while targetEncodingOffset < len(target):
-		# The best list of operations we've seen so far.
+		# Keeps track of the most efficient operation for encoding this
+		# particular offset that we've found so far.
 		bestOp = None
 		bestOpEfficiency = 0
 		bestOpBackSpan = 0
