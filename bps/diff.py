@@ -130,6 +130,7 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 		bestOp = None
 		bestOpEfficiency = 0
 		bestOpBackSpan = 0
+		bestOpForeSpan = 0
 
 		blockend = targetEncodingOffset + blocksize
 		block = target[targetEncodingOffset:blockend]
@@ -160,6 +161,7 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 				bestOp = candidate
 				bestOpEfficiency = efficiency
 				bestOpBackSpan = backspan
+				bestOpForeSpan = forespan
 
 		for targetOffset in targetmap.get_block(block):
 			backspan, forespan = measure_op(
@@ -184,6 +186,7 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 				bestOp = candidate
 				bestOpEfficiency = efficiency
 				bestOpBackSpan = backspan
+				bestOpForeSpan = forespan
 
 		if bestOp is None:
 			# We can't find a way to encode this block, so we'll have to issue
