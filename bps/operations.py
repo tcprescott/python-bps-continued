@@ -379,6 +379,9 @@ class OpBuffer:
 	def __iter__(self):
 		return iter(self._buf)
 
+	def __repr__(self):
+		return "<OpBuffer with {0} items>".format(len(self._buf))
+
 	def append(self, operation, rollback=0):
 
 		# If our rollback value is big enough, remove entire operations from
