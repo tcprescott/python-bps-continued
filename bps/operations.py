@@ -235,9 +235,9 @@ class _BaseCopy(BaseOperation):
 
 	def __init__(self, bytespan, offset):
 		assert isinstance(bytespan, int)
-		assert bytespan > 0
+		assert bytespan > 0, "Bytespan must be > 0, not {0}".format(bytespan)
 		assert isinstance(offset, int)
-		assert offset >= 0
+		assert offset >= 0, "Offset must be >= 0, not {0}".format(offset)
 
 		self.bytespan = bytespan
 		self.offset = offset
