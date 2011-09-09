@@ -25,7 +25,7 @@ def iter_blocks(data, blocksize):
 		block = data[offset:offset+blocksize]
 
 		yield (block, offset)
-		offset += len(block)
+		offset += 1
 
 
 def measure_op(blocksrc, sourceoffset, target, targetoffset):

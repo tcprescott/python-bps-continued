@@ -43,14 +43,27 @@ class TestIterBlocks(unittest.TestCase):
 		self.assertEqual([
 				# Each item is a block and an offset.
 				([1,2,3,4], 0),
+				([2,3,4,5], 1),
+				([3,4,5,6], 2),
+				([4,5,6,7], 3),
 				([5,6,7,8], 4),
+				([6,7,8,9], 5),
+				([7,8,9,0], 6),
+				([8,9,0],   7),
 				([9,0],     8),
+				([0],       9),
 			], list(diff.iter_blocks(source, 4)))
 
 		self.assertEqual([
 				([1,2,3], 0),
+				([2,3,4], 1),
+				([3,4,5], 2),
 				([4,5,6], 3),
+				([5,6,7], 4),
+				([6,7,8], 5),
 				([7,8,9], 6),
+				([8,9,0], 7),
+				([9,0],   8),
 				([0],     9),
 			], list(diff.iter_blocks(source, 3)))
 
@@ -209,7 +222,8 @@ class TestDiffBytearrays(unittest.TestCase):
 					ops.Header(len(source), len(target)),
 					ops.TargetRead(b'AA'),
 					ops.SourceRead(2),
-					ops.TargetRead(b'BB'),
+					ops.TargetRead(b'B'),
+					ops.SourceRead(1),
 					ops.SourceCRC32(0x76F34B4D),
 					ops.TargetCRC32(0x1A7E625E),
 				],
@@ -219,7 +233,8 @@ class TestDiffBytearrays(unittest.TestCase):
 				list(diff.diff_bytearrays(3, source, target)),
 				[
 					ops.Header(len(source), len(target)),
-					ops.TargetRead(b'AAABBB'),
+					ops.TargetRead(b'AAABB'),
+					ops.SourceRead(1),
 					ops.SourceCRC32(0x76F34B4D),
 					ops.TargetCRC32(0x1A7E625E),
 				],
