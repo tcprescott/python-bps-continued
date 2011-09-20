@@ -718,6 +718,80 @@ class TestOpBuffer(unittest.TestCase):
 				list(ob),
 			)
 
+	def test_offsets_of_empty_buffer(self):
+		"""
+		A fresh buffer has both copy offsets set to 0.
+		"""
+		ob = ops.OpBuffer()
+
+		self.assertEqual((0, 0), ob.copy_offsets())
+
+	def test_SourceCopy_updates_SourceCopyOffset(self):
+		"""
+		A SourceCopy operation sets lastSourceCopyOffset.
+		"""
+		ob = ops.OpBuffer()
+		ob.append(ops.SourceCopy(1, 3))
+
+		self.assertEqual((4, 0), ob.copy_offsets())
+
+	def test_TargetCopy_updates_TargetCopyOffset(self):
+		"""
+		A TargetCopy operation sets lastTargetCopyOffset.
+		"""
+		ob = ops.OpBuffer()
+		ob.append(ops.TargetCopy(2, 4))
+
+		self.assertEqual((0, 6), ob.copy_offsets())
+
+	def test_SourceRead_does_not_affect_copy_offsets(self):
+		"""
+		A SourceRead operation does not change the copy offsets.
+		"""
+		ob = ops.OpBuffer()
+		ob.append(ops.SourceRead(5))
+
+		self.assertEqual((0, 0), ob.copy_offsets())
+
+	def test_TargetRead_does_not_affect_copy_offsets(self):
+		"""
+		A TargetRead operation does not change the copy offsets.
+		"""
+		ob = ops.OpBuffer()
+		ob.append(ops.TargetRead(b'ABC'))
+
+		self.assertEqual((0, 0), ob.copy_offsets())
+
+	def test_copy_offsets_with_zero_rollback(self):
+		"""
+		Zero rollback does not affect the reported copy offsets.
+		"""
+		ob = ops.OpBuffer()
+		ob.append(ops.SourceCopy(5, 7))
+		ob.append(ops.TargetCopy(6, 3))
+
+		self.assertEqual((12, 9), ob.copy_offsets(0))
+
+	def test_copy_offsets_with_partial_rollback(self):
+		"""
+		Partially rolling back a copy op does not affect the reported offsets.
+		"""
+		ob = ops.OpBuffer()
+		ob.append(ops.SourceCopy(5, 7))
+		ob.append(ops.TargetCopy(6, 3))
+
+		self.assertEqual((12, 9), ob.copy_offsets(3))
+
+	def test_copy_offsets_with_full_rollback(self):
+		"""
+		Rolling back past a copy op changes the reported offsets.
+		"""
+		ob = ops.OpBuffer()
+		ob.append(ops.SourceCopy(5, 7))
+		ob.append(ops.TargetCopy(6, 3))
+
+		self.assertEqual((12, 0), ob.copy_offsets(6))
+
 
 if __name__ == "__main__":
 	unittest.main()

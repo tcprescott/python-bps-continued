@@ -8,6 +8,7 @@
 """
 Classes representing patch operations.
 """
+import sys
 from struct import pack
 from bps import util
 from bps import constants as C
@@ -383,7 +384,6 @@ class OpBuffer:
 		return "<OpBuffer with {0} items>".format(len(self._buf))
 
 	def append(self, operation, rollback=0):
-
 		# If our rollback value is big enough, remove entire operations from
 		# the buffer.
 		while self._buf and rollback >= self._buf[-1].bytespan:
@@ -405,3 +405,40 @@ class OpBuffer:
 				operation.shrink(rollback)
 
 		self._buf.append(operation)
+
+	def copy_offsets(self, rollback=0):
+		lastSourceCopyOffset = None
+		lastTargetCopyOffset = None
+
+		index = len(self._buf) - 1
+
+		while index >= 0 and rollback > 0:
+			op = self._buf[index]
+
+			if rollback < op.bytespan: break
+
+			rollback -= self._buf[index].bytespan
+			index -= 1
+
+		while (
+				lastSourceCopyOffset is None
+				or lastTargetCopyOffset is None
+			) and index >= 0:
+			op = self._buf[index]
+
+			if (isinstance(op, SourceCopy) and
+					lastSourceCopyOffset is None):
+				lastSourceCopyOffset = op.offset + op.bytespan
+
+			elif (isinstance(op, TargetCopy) and
+					lastTargetCopyOffset is None):
+				lastTargetCopyOffset = op.offset + op.bytespan
+
+			index -= 1
+
+		if lastSourceCopyOffset is None:
+			lastSourceCopyOffset = 0
+		if lastTargetCopyOffset is None:
+			lastTargetCopyOffset = 0
+
+		return (lastSourceCopyOffset, lastTargetCopyOffset)
