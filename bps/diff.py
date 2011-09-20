@@ -103,14 +103,6 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 	# targetWriteOffset.
 	targetEncodingOffset = 0
 
-	# Points at the byte after the last byte written by the most recent
-	# SourceCopy operation.
-	lastSourceCopyOffset = 0
-
-	# Points at the byte after the last byte written by the most recent
-	# TargetCopy operation.
-	lastTargetCopyOffset = 0
-
 	# Keep track of blocks seen in the part of the target buffer before
 	# targetWriteOffset. Because targetWriteOffset does not always advance by
 	# an even multiple of the blocksize, there can be some lag between when
@@ -159,6 +151,10 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 						sourceOffset-backspan,
 					)
 
+			lastSourceCopyOffset, lastTargetCopyOffset = (
+					opbuf.copy_offsets(backspan)
+				)
+
 			efficiency = op_efficiency(candidate,
 					lastSourceCopyOffset, lastTargetCopyOffset)
 
@@ -182,6 +178,10 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 			candidate = ops.TargetCopy(
 					backspan+forespan,
 					targetOffset-backspan,
+				)
+
+			lastSourceCopyOffset, lastTargetCopyOffset = (
+					opbuf.copy_offsets(backspan)
 				)
 
 			efficiency = op_efficiency(candidate,
@@ -209,11 +209,6 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 		opbuf.append(bestOp, rollback=bestOpBackSpan)
 
 		targetWriteOffset += bestOpForeSpan
-
-		if isinstance(bestOp, ops.TargetCopy):
-			lastTargetCopyOffset = bestOp.offset + bestOp.bytespan
-		if isinstance(bestOp, ops.SourceCopy):
-			lastSourceCopyOffset = bestOp.offset + bestOp.bytespan
 
 		# The next block we want to encode starts after the bytes we've
 		# just written.
