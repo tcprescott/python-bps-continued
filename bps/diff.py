@@ -193,9 +193,10 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 				bestOpBackSpan = backspan
 				bestOpForeSpan = forespan
 
-		if bestOp is None:
-			# We can't find a way to encode this block, so we'll have to issue
-			# a TargetRead... later.
+		# If we can't find a copy instruction that encodes this block, or the
+		# best one we've found is a net efficiency loss,  we'll have to issue
+		# a TargetRead... later.
+		if bestOp is None or bestOpEfficiency < 1.0:
 			targetEncodingOffset += 1
 			continue
 
