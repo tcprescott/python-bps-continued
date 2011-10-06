@@ -8,7 +8,6 @@
 """
 Classes representing patch operations.
 """
-import sys
 from struct import pack
 from bps import util
 from bps import constants as C
