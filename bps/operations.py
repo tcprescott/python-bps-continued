@@ -377,7 +377,8 @@ class OpBuffer:
 		self._buf = []
 
 	def __iter__(self):
-		return iter(self._buf)
+		for op, lastSourceCopyOffset, lastTargetCopyOffset in self._buf:
+			yield op
 
 	def __repr__(self):
 		return "<OpBuffer with {0} items>".format(len(self._buf))
@@ -385,17 +386,17 @@ class OpBuffer:
 	def append(self, operation, rollback=0):
 		# If our rollback value is big enough, remove entire operations from
 		# the buffer.
-		while self._buf and rollback >= self._buf[-1].bytespan:
-			prevop = self._buf.pop()
+		while self._buf and rollback >= self._buf[-1][0].bytespan:
+			prevop, _, _ = self._buf.pop()
 			rollback -= prevop.bytespan
 
 		# If there's any rolling back left to do...
 		if rollback:
-			if self._buf and isinstance(self._buf[-1], TargetRead):
+			if self._buf and isinstance(self._buf[-1][0], TargetRead):
 				# The last un-rolled-back operation is a TargetRead, so we
 				# should bite the end off it and replace those bites with our
 				# shiny new efficient operation.
-				self._buf[-1].shrink(-rollback)
+				self._buf[-1][0].shrink(-rollback)
 			else:
 				# The last un-rolled-back operation is either a *Copy or
 				# a SourceRead (which is effectively a kind of Copy). Since it
@@ -403,41 +404,32 @@ class OpBuffer:
 				# let's trim the front off the new one.
 				operation.shrink(rollback)
 
-		self._buf.append(operation)
+		if self._buf:
+			_, lastSourceCopyOffset, lastTargetCopyOffset = self._buf[-1]
+		else:
+			lastSourceCopyOffset = lastTargetCopyOffset = 0
+
+		if isinstance(operation, SourceCopy):
+			lastSourceCopyOffset = operation.offset + operation.bytespan
+		elif isinstance(operation, TargetCopy):
+			lastTargetCopyOffset = operation.offset + operation.bytespan
+
+		self._buf.append(
+				(operation, lastSourceCopyOffset, lastTargetCopyOffset)
+			)
 
 	def copy_offsets(self, rollback=0):
-		lastSourceCopyOffset = None
-		lastTargetCopyOffset = None
+		lastSourceCopyOffset = 0
+		lastTargetCopyOffset = 0
 
 		index = len(self._buf) - 1
 
-		while index >= 0 and rollback > 0:
-			op = self._buf[index]
+		while index >= 0:
+			op, lastSourceCopyOffset, lastTargetCopyOffset = self._buf[index]
 
 			if rollback < op.bytespan: break
 
-			rollback -= self._buf[index].bytespan
+			rollback -= op.bytespan
 			index -= 1
-
-		while (
-				lastSourceCopyOffset is None
-				or lastTargetCopyOffset is None
-			) and index >= 0:
-			op = self._buf[index]
-
-			if (isinstance(op, SourceCopy) and
-					lastSourceCopyOffset is None):
-				lastSourceCopyOffset = op.offset + op.bytespan
-
-			elif (isinstance(op, TargetCopy) and
-					lastTargetCopyOffset is None):
-				lastTargetCopyOffset = op.offset + op.bytespan
-
-			index -= 1
-
-		if lastSourceCopyOffset is None:
-			lastSourceCopyOffset = 0
-		if lastTargetCopyOffset is None:
-			lastTargetCopyOffset = 0
 
 		return (lastSourceCopyOffset, lastTargetCopyOffset)
