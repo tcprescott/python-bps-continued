@@ -64,6 +64,30 @@ class TestHeader(unittest.TestCase):
 		header = ops.Header(1, 2)
 		self.assertEqual(header.efficiency(0,0), 0)
 
+	def test_encoded_size(self):
+		"""
+		A header's encoded size depends on the size of its parameters.
+		"""
+		# If each lengths fits in a single byte and there's no metadata, the
+		# encoded size should be 7 bytes
+		h1 = ops.Header(1, 2, "")
+		self.assertEqual(h1.encoded_size(0,0), 4 + 1 + 1 + 1 + 0)
+
+		# If one length takes more than a single byte, the size should be
+		# 8 bytes.
+		h2 = ops.Header(128, 2, "")
+		self.assertEqual(h2.encoded_size(0,0), 4 + 2 + 1 + 1 + 0)
+		h3 = ops.Header(1, 128, "")
+		self.assertEqual(h3.encoded_size(0,0), 4 + 1 + 2 + 1 + 0)
+
+		# If there's metadata whose length fits in a single byte, the size
+		# increases by the length of the metadata.
+		h4 = ops.Header(1, 2, "A" * 5)
+		self.assertEqual(h4.encoded_size(0,0), 4 + 1 + 1 + 1 + 5)
+
+		# Header size does not depend on last copy offsets.
+		self.assertEqual(h4.encoded_size(1000,1000), 4 + 1 + 1 + 1 + 5)
+
 	def test_equality(self):
 		"""
 		Header ops are equal if their properties are equal.
@@ -164,6 +188,21 @@ class TestSourceRead(unittest.TestCase):
 		op = ops.SourceRead(2)
 		self.assertAlmostEqual(op.efficiency(   0,    0), 2.0, delta=0.01)
 		self.assertAlmostEqual(op.efficiency(1000, 1000), 2.0, delta=0.01)
+
+	def test_encoded_size(self):
+		"""
+		The SourceRead op's encoded size depends only on its length.
+		"""
+		# A SourceRead with a small length fits in 1 byte.
+		op = ops.SourceRead(32)
+		self.assertEqual(op.encoded_size(0,0), 1)
+
+		# A SourceRead with a longer length spills over into two bytes.
+		op = ops.SourceRead(33)
+		self.assertEqual(op.encoded_size(0,0), 2)
+
+		# The encoded size is independant of copy offsets.
+		self.assertEqual(op.encoded_size(1000, 1000), 2)
 
 	def test_equality(self):
 		"""
@@ -288,6 +327,21 @@ class TestTargetRead(unittest.TestCase):
 		op = ops.TargetRead(b'AAA')
 		self.assertAlmostEqual(op.efficiency(   0,    0), 0.75, delta=0.01)
 		self.assertAlmostEqual(op.efficiency(1000, 1000), 0.75, delta=0.01)
+
+	def test_encoded_size(self):
+		"""
+		The TargetRead op's encoded size depends only on its length.
+		"""
+		# A short TargetRead takes a single byte, plus the payload.
+		op = ops.TargetRead(b'A' * 32)
+		self.assertEqual(op.encoded_size(0,0), 33)
+
+		# A longer TargetRead takes two bytes, plus the payload.
+		op = ops.TargetRead(b'A' * 33)
+		self.assertEqual(op.encoded_size(0,0), 35)
+
+		# The encoded size is independant of copy offsets.
+		self.assertEqual(op.encoded_size(1000,1000), 35)
 
 	def test_equality(self):
 		"""
@@ -497,6 +551,20 @@ class TestSourceCopy(CopyOperationTestsMixIn, unittest.TestCase):
 		self.assertAlmostEqual(op.efficiency(   0, 1000), 2.00, delta=0.01)
 		self.assertAlmostEqual(op.efficiency(1000,    0), 1.33, delta=0.01)
 
+	def test_encoded_size(self):
+		"""
+		The SourceCopy op's size depends on length and lastSourceCopyOffset.
+		"""
+		op = ops.SourceCopy(32, 0)
+		self.assertEqual(op.encoded_size(63, 63), 2)
+		self.assertEqual(op.encoded_size(63, 64), 2)
+		self.assertEqual(op.encoded_size(64, 63), 3)
+
+		op = ops.SourceCopy(33, 0)
+		self.assertEqual(op.encoded_size(63, 63), 3)
+		self.assertEqual(op.encoded_size(63, 64), 3)
+		self.assertEqual(op.encoded_size(64, 63), 4)
+
 	def test_marker(self):
 		"""
 		SourceCopy ops use the marker 'Sc'.
@@ -539,6 +607,20 @@ class TestTargetCopy(CopyOperationTestsMixIn, unittest.TestCase):
 		self.assertAlmostEqual(op.efficiency(   0,    0), 2.00, delta=0.01)
 		self.assertAlmostEqual(op.efficiency(   0, 1000), 1.33, delta=0.01)
 		self.assertAlmostEqual(op.efficiency(1000,    0), 2.00, delta=0.01)
+
+	def test_encoded_size(self):
+		"""
+		The TargetCopy op's size depends on length and lastTargetCopyOffset.
+		"""
+		op = ops.TargetCopy(32, 0)
+		self.assertEqual(op.encoded_size(63, 63), 2)
+		self.assertEqual(op.encoded_size(63, 64), 3)
+		self.assertEqual(op.encoded_size(64, 63), 2)
+
+		op = ops.TargetCopy(33, 0)
+		self.assertEqual(op.encoded_size(63, 63), 3)
+		self.assertEqual(op.encoded_size(63, 64), 4)
+		self.assertEqual(op.encoded_size(64, 63), 3)
 
 	def test_marker(self):
 		"""
@@ -594,6 +676,14 @@ class CRCOperationTestsMixIn:
 		"""
 		op = self.constructor(0x11223344)
 		self.assertEqual(op.efficiency(0,0), 0)
+
+	def test_encoded_size(self):
+		"""
+		CRC operations always take 4 bytes.
+		"""
+		op = self.constructor(0x11223344)
+		self.assertEqual(op.encoded_size(   0,   0), 4)
+		self.assertEqual(op.encoded_size(1000,1000), 4)
 
 	def test_equality(self):
 		"""

@@ -35,11 +35,19 @@ class BaseOperation:
 		"""
 		raise NotImplementedError()
 
+	def encoded_size(self, sourceRelativeOffset, targetRelativeOffset):
+		"""
+		Estimate the size of the bytestring returned by .encode()
+		"""
+		raise NotImplementedError()
+
 	def efficiency(self, sourceRelativeOffset, targetRelativeOffset):
 		"""
 		Returns a float representing the efficiency of this op at this offset.
 		"""
-		raise NotImplementedError()
+		return self.bytespan / self.encoded_size(
+				sourceRelativeOffset, targetRelativeOffset
+			)
 
 	def extend(self, other):
 		"""
@@ -116,8 +124,15 @@ class Header(BaseOperation):
 				"Cannot shrink a header, let alone by {0!r}".format(length)
 			)
 
-	def efficiency(self, ignored, ignored2):
-		return 0
+	def encoded_size(self, ignored, ignored2):
+		encoded_metadata = self.metadata.encode('utf-8')
+		return (
+				len(C.BPS_MAGIC)
+				+ util.measure_var_int(self.sourceSize)
+				+ util.measure_var_int(self.targetSize)
+				+ util.measure_var_int(len(encoded_metadata))
+				+ len(encoded_metadata)
+			)
 
 
 class SourceRead(BaseOperation):
@@ -166,8 +181,8 @@ class SourceRead(BaseOperation):
 
 		self.bytespan -= abs(length)
 
-	def efficiency(self, ignored, ignored2):
-		return self.bytespan / util.measure_var_int (
+	def encoded_size(self, ignored, ignored2):
+		return util.measure_var_int (
 				(self.bytespan - 1) << C.OPCODESHIFT | C.OP_SOURCEREAD
 			)
 
@@ -239,11 +254,11 @@ class TargetRead(BaseOperation):
 		else:
 			self._payload = [self.payload[:length]]
 
-	def efficiency(self, ignored, ignored2):
+	def encoded_size(self, ignored, ignored2):
 		bytespan = self.bytespan
-		return bytespan / (bytespan + util.measure_var_int(
+		return util.measure_var_int(
 				(bytespan - 1) << C.OPCODESHIFT | C.OP_TARGETREAD
-			))
+			) + bytespan
 
 
 class _BaseCopy(BaseOperation):
@@ -323,16 +338,13 @@ class SourceCopy(_BaseCopy):
 				),
 			])
 
-	def efficiency(self, lastSourceCopyOffset, ignored):
+	def encoded_size(self, lastSourceCopyOffset, ignored):
 		relOffset = self.offset - lastSourceCopyOffset
 
-		return self.bytespan / (
-				util.measure_var_int(
-					(self.bytespan - 1) << C.OPCODESHIFT | C.OP_SOURCECOPY
-				) +
-				util.measure_var_int(
-					(abs(relOffset) << 1) | (relOffset < 0)
-				)
+		return util.measure_var_int(
+				(self.bytespan - 1) << C.OPCODESHIFT | C.OP_SOURCECOPY
+			) + util.measure_var_int(
+				(abs(relOffset) << 1) | (relOffset < 0)
 			)
 
 
@@ -352,16 +364,13 @@ class TargetCopy(_BaseCopy):
 				),
 			])
 
-	def efficiency(self, ignored, lastTargetCopyOffset):
+	def encoded_size(self, ignored, lastTargetCopyOffset):
 		relOffset = self.offset - lastTargetCopyOffset
 
-		return self.bytespan / (
-				util.measure_var_int(
-					(self.bytespan - 1) << C.OPCODESHIFT | C.OP_TARGETCOPY
-				) +
-				util.measure_var_int(
-					(abs(relOffset) << 1) | (relOffset < 0)
-				)
+		return util.measure_var_int(
+				(self.bytespan - 1) << C.OPCODESHIFT | C.OP_TARGETCOPY
+			) + util.measure_var_int(
+				(abs(relOffset) << 1) | (relOffset < 0)
 			)
 
 
@@ -403,8 +412,8 @@ class _BaseCRC32(BaseOperation):
 				"Cannot shrink {0!r}, let alone by {1!r}".format(self, length)
 			)
 
-	def efficiency(self, ignored, ignored2):
-		return 0
+	def encoded_size(self, ignored, ignored2):
+		return 4
 
 
 class SourceCRC32(_BaseCRC32):
