@@ -725,6 +725,88 @@ class TestTargetCRC32(CRCOperationTestsMixIn, unittest.TestCase):
 	constructor = ops.TargetCRC32
 
 
+class TestOpSequenceEfficiency(unittest.TestCase):
+
+	def test_empty_list(self):
+		"""
+		It makes no sense to ask for the efficiency of no operations.
+		"""
+		self.assertEqual(
+				ops.op_sequence_efficiency([], 0, 0),
+				None,
+			)
+
+	def test_read_operations(self):
+		"""
+		Efficiency of read ops only depends on the operations themselves.
+		"""
+		oplist = [
+				# SourceRead operation that takes 1 byte.
+				ops.SourceRead(9),
+				# TargetRead operation that takes 6 bytes.
+				ops.TargetRead(b'AAAAA'),
+			]
+
+		# Check that the efficiency is calculated correctly.
+		self.assertAlmostEqual(
+				ops.op_sequence_efficiency(oplist, 0, 0),
+				2.0,
+				delta=0.01,
+			)
+
+		# Changing the last copy offsets should have no effect.
+		self.assertAlmostEqual(
+				ops.op_sequence_efficiency(oplist, 1000, 1000),
+				2.0,
+				delta=0.01,
+			)
+
+	def test_SourceCopy_operation(self):
+		"""
+		Efficiency of SourceCopy depends on the ops and lastSourceCopyOffset.
+		"""
+		# This operation represents 6 bytes and takes 3, so alone it should
+		# have an efficiency of 2.
+		op = ops.SourceCopy(6, 1000)
+		self.assertAlmostEqual(ops.op_sequence_efficiency([op], 0, 0),
+				2.0, delta=0.01)
+
+		# Changing lastTargetCopyOffset should have no effect.
+		self.assertAlmostEqual(ops.op_sequence_efficiency([op], 0, 1000),
+				2.0, delta=0.01)
+
+		# Changing lastSourceCopyOffset to something close to the recorded
+		# offset should make the operation take only 2 bytes, giving an
+		# efficiency of 3.
+		self.assertAlmostEqual(ops.op_sequence_efficiency([op], 1000, 0),
+				3.0, delta=0.01)
+
+		# If we repeat this operation, we might expect the result to have twice
+		# the overhead and twice the bytespan, giving exactly the same
+		# efficiency. However, after the first operation, lastSourceCopyOffset
+		# should be updated and the second operation should use the new value.
+		# Thus the sequence should take 5 bytes to represent 12.
+		self.assertAlmostEqual(ops.op_sequence_efficiency([op, op], 0, 0),
+				12.0/5.0, delta=0.01)
+
+	def test_TargetCopy_operation(self):
+		"""
+		Efficiency of TargetCopy depends on the ops and lastTargetCopyOffset.
+		"""
+		op = ops.TargetCopy(6, 1000)
+		self.assertAlmostEqual(ops.op_sequence_efficiency([op], 0, 0),
+				2.0, delta=0.01)
+
+		self.assertAlmostEqual(ops.op_sequence_efficiency([op], 1000, 0),
+				2.0, delta=0.01)
+
+		self.assertAlmostEqual(ops.op_sequence_efficiency([op], 0, 1000),
+				3.0, delta=0.01)
+
+		self.assertAlmostEqual(ops.op_sequence_efficiency([op, op], 0, 0),
+				12.0/5.0, delta=0.01)
+
+
 class TestOpBuffer(unittest.TestCase):
 
 	def test_empty(self):

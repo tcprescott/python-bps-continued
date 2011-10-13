@@ -424,6 +424,28 @@ class TargetCRC32(_BaseCRC32):
 	pass
 
 
+def op_sequence_efficiency(oplist, lastSourceCopyOffset, lastTargetCopyOffset):
+
+	total_encoded_size = 0
+	total_bytespan = 0
+
+	for op in oplist:
+		total_bytespan += op.bytespan
+
+		total_encoded_size += op.encoded_size(
+				lastSourceCopyOffset, lastTargetCopyOffset)
+
+		if isinstance(op, SourceCopy):
+			lastSourceCopyOffset = op.offset + op.bytespan
+		elif isinstance(op, TargetCopy):
+			lastTargetCopyOffset = op.offset + op.bytespan
+
+	if total_encoded_size:
+		return total_bytespan / total_encoded_size
+
+	return None
+
+
 class OpBuffer:
 	"""
 	Represents a mutable sequence of patch operations.
