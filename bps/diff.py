@@ -111,7 +111,7 @@ def diff_bytearrays(blocksize, source, target, metadata=""):
 	# A place to store operations before we spit them out. This gives us an
 	# opportunity to replace operations if we later come across a better
 	# alternative encoding.
-	opbuf = ops.OpBuffer()
+	opbuf = ops.OpBuffer(target)
 
 	while targetEncodingOffset < len(target):
 		# Keeps track of the most efficient operation for encoding this

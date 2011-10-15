@@ -813,7 +813,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		OpBuffer starts off empty.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'')
 
 		self.assertEqual([], list(ob))
 
@@ -821,7 +821,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		OpBuffer.append() adds an operation to the buffer.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABCABC')
 
 		expected = [
 				ops.TargetRead(b'ABC'),
@@ -837,7 +837,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		The rollback value must be less than the operation's bytespan.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABC')
 
 		self.assertRaisesRegex(ValueError, "10 too large",
 				ob.append, ops.SourceRead(10), 10)
@@ -846,7 +846,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		OpBuffer.append() with a rollback value eats previous ops.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABCDEFGHI')
 
 		ob.append(ops.TargetRead(b'ABC') )
 		ob.append(ops.SourceCopy(3, 0)   )
@@ -864,7 +864,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		Rollback can eat multiple previous ops.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABCDEFGHIJ')
 
 		ob.append(ops.TargetRead(b'ABC') )
 		ob.append(ops.SourceCopy(3, 0)   )
@@ -883,7 +883,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		Trying to rollback past the first op leads to truncation.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABC')
 		ob.append(ops.SourceRead(6), 3)
 
 		self.assertEqual([ops.SourceRead(3)], list(ob))
@@ -960,7 +960,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		A fresh buffer has both copy offsets set to 0.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'')
 
 		self.assertEqual((0, 0), ob.copy_offsets())
 
@@ -968,7 +968,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		A SourceCopy operation sets lastSourceCopyOffset.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'A')
 		ob.append(ops.SourceCopy(1, 3))
 
 		self.assertEqual((4, 0), ob.copy_offsets())
@@ -977,7 +977,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		A TargetCopy operation sets lastTargetCopyOffset.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'AB')
 		ob.append(ops.TargetCopy(2, 4))
 
 		self.assertEqual((0, 6), ob.copy_offsets())
@@ -986,7 +986,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		A SourceRead operation does not change the copy offsets.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABCDE')
 		ob.append(ops.SourceRead(5))
 
 		self.assertEqual((0, 0), ob.copy_offsets())
@@ -995,7 +995,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		A TargetRead operation does not change the copy offsets.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABC')
 		ob.append(ops.TargetRead(b'ABC'))
 
 		self.assertEqual((0, 0), ob.copy_offsets())
@@ -1004,7 +1004,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		Zero rollback does not affect the reported copy offsets.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABCDEabcdef')
 		ob.append(ops.SourceCopy(5, 7))
 		ob.append(ops.TargetCopy(6, 3))
 
@@ -1014,7 +1014,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		Partially rolling back a copy op does not affect the reported offsets.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABCDEabcdef')
 		ob.append(ops.SourceCopy(5, 7))
 		ob.append(ops.TargetCopy(6, 3))
 
@@ -1024,7 +1024,7 @@ class TestOpBuffer(unittest.TestCase):
 		"""
 		Rolling back past a copy op changes the reported offsets.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABCDEabcdef')
 		ob.append(ops.SourceCopy(5, 7))
 		ob.append(ops.TargetCopy(6, 3))
 

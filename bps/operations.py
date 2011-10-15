@@ -451,7 +451,8 @@ class OpBuffer:
 	Represents a mutable sequence of patch operations.
 	"""
 
-	def __init__(self):
+	def __init__(self, target):
+		self.target = target
 		self._buf = []
 
 	def __iter__(self):
