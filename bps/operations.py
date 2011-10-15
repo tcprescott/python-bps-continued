@@ -377,8 +377,8 @@ class OpBuffer:
 		self._buf = []
 
 	def __iter__(self):
-		for op, lastSourceCopyOffset, lastTargetCopyOffset in self._buf:
-			yield op
+		for row in self._buf:
+			yield row[0]
 
 	def __repr__(self):
 		return "<OpBuffer with {0} items>".format(len(self._buf))
@@ -390,24 +390,26 @@ class OpBuffer:
 		Append the given operation to the list, maintaining internal caches.
 		"""
 		if self._buf:
-			_, lastSourceCopyOffset, lastTargetCopyOffset = self._buf[-1]
+			_, writeOffset, lastSourceCopyOffset, lastTargetCopyOffset = \
+					self._buf[-1]
 		else:
-			lastSourceCopyOffset = lastTargetCopyOffset = 0
+			writeOffset = lastSourceCopyOffset = lastTargetCopyOffset = 0
+
+		writeOffset += operation.bytespan
 
 		if isinstance(operation, SourceCopy):
 			lastSourceCopyOffset = operation.offset + operation.bytespan
 		elif isinstance(operation, TargetCopy):
 			lastTargetCopyOffset = operation.offset + operation.bytespan
 
-		self._buf.append(
-				(operation, lastSourceCopyOffset, lastTargetCopyOffset)
-			)
+		self._buf.append( (operation, writeOffset, lastSourceCopyOffset,
+				lastTargetCopyOffset) )
 
 	def append(self, operation, rollback=0):
 		# If our rollback value is big enough, remove entire operations from
 		# the buffer.
 		while self._buf and rollback >= self._buf[-1][0].bytespan:
-			prevop, _, _ = self._buf.pop()
+			prevop, _, _, _ = self._buf.pop()
 			rollback -= prevop.bytespan
 
 		# If there's any rolling back left to do...
@@ -427,17 +429,16 @@ class OpBuffer:
 		self._append(operation)
 
 	def copy_offsets(self, rollback=0):
-		lastSourceCopyOffset = 0
-		lastTargetCopyOffset = 0
+		copyOffsets = [0, 0]
 
 		index = len(self._buf) - 1
 
 		while index >= 0:
-			op, lastSourceCopyOffset, lastTargetCopyOffset = self._buf[index]
+			op, writeOffset, *copyOffsets = self._buf[index]
 
 			if rollback < op.bytespan: break
 
 			rollback -= op.bytespan
 			index -= 1
 
-		return (lastSourceCopyOffset, lastTargetCopyOffset)
+		return tuple(copyOffsets)
