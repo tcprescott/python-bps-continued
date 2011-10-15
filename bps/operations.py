@@ -8,6 +8,7 @@
 """
 Classes representing patch operations.
 """
+import copy
 from struct import pack
 from bps import util
 from bps import constants as C
@@ -491,19 +492,76 @@ class OpBuffer:
 			prevop, _, _, _ = self._buf.pop()
 			rollback -= prevop.bytespan
 
-		# If there's any rolling back left to do...
-		if rollback:
-			if self._buf and isinstance(self._buf[-1][0], TargetRead):
-				# The last un-rolled-back operation is a TargetRead, so we
-				# should bite the end off it and replace those bites with our
-				# shiny new efficient operation.
-				self._buf[-1][0].shrink(-rollback)
+		# If there's any rolling back left to do, and operations to roll
+		# back...
+		if rollback and self._buf:
+			# We may want to mess with the last operation in the buffer, so
+			# let's make a short name for it.
+			prevOp, _, _, _ = self._buf[-1]
+
+			# Grab the lastSourceCopyOffset and lastTargetCopyOffset that
+			# affect prevOp.
+			if len(self._buf) > 2:
+				(_, writeOffset, startSourceCopyOffset,
+						startTargetCopyOffset) = self._buf[-2]
 			else:
-				# The last un-rolled-back operation is either a *Copy or
-				# a SourceRead (which is effectively a kind of Copy). Since it
-				# doesn't really matter which operation gets trimmed to fit,
-				# let's trim the front off the new one.
-				operation.shrink(rollback)
+				writeOffset = startSourceCopyOffset = startTargetCopyOffset = 0
+
+			# Option 1 is to shrink the new operation, and leave the
+			# previous operation alone.
+			opt1newOp = copy.copy(operation)
+			opt1newOp.shrink(rollback)
+			opt1eff = op_sequence_efficiency(
+					[prevOp, opt1newOp],
+					startSourceCopyOffset, startTargetCopyOffset
+				)
+
+			# Option 2 is to shrink the last operation, and leave the new
+			# operation alone.
+			opt2prevOp = copy.copy(prevOp)
+			opt2prevOp.shrink(-rollback)
+			opt2eff = op_sequence_efficiency(
+					[opt2prevOp, operation],
+					startSourceCopyOffset, startTargetCopyOffset,
+				)
+
+			# Option 3 is to leave the new operation alone, and replace the
+			# last operation with a TargetRead.
+			trStart = writeOffset
+			trEnd   = trStart + (prevOp.bytespan - rollback)
+			opt3prevOp = TargetRead(self.target[trStart:trEnd])
+			opt3eff = op_sequence_efficiency(
+					[opt3prevOp, operation],
+					startSourceCopyOffset, startTargetCopyOffset,
+				)
+
+			# Which option is the most efficient?
+			maxEff = max(opt1eff, opt2eff, opt3eff)
+
+			if maxEff == opt1eff:
+				# Use the new operation we created for option 1.
+				operation = opt1newOp
+
+			elif maxEff == opt2eff:
+				# Replace the last operation in self._buf with the truncated
+				# one we created for option 2.
+				self._buf.pop()
+				self._append(opt2prevOp)
+
+			else:
+				# Replace the last operation in self._buf with the TargetRead
+				# we created for option 2.
+				self._buf.pop()
+				if self._buf and isinstance(self._buf[-1][0], TargetRead):
+					penultimateOp, *_ = self._buf.pop()
+					penultimateOp.extend(opt3prevOp)
+					self._append(penultimateOp)
+				else:
+					self._append(opt3prevOp)
+
+		# We've been asked to roll back past the first operation.
+		elif rollback:
+			operation.shrink(rollback)
 
 		self._append(operation)
 

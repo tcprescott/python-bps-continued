@@ -888,70 +888,71 @@ class TestOpBuffer(unittest.TestCase):
 
 		self.assertEqual([ops.SourceRead(3)], list(ob))
 
-	def test_partial_TargetRead_rollback(self):
+	def test_partial_rollback_scenario_1(self):
 		"""
-		A partial rollback eats as much TargetRead as possible.
+		Trim the front off the new operation, if that's more efficient.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABC')
 
-		ob.append(ops.TargetRead(b'ABCDEF'))
-		ob.append(ops.SourceRead(6), 4)
+		ob.append(ops.SourceCopy(32, 1))
+
+		# Make the new operation whose length is just enough to make it require
+		# a second byte, with enough rollback to reduce the encoded size back
+		# to one byte.
+		ob.append(ops.SourceRead(33), 1)
 
 		self.assertEqual(
+				# We should have sliced the front byte off the SourceRead
+				# operation, for maximum efficiency.
 				[
-					ops.TargetRead(b'AB'),
-					ops.SourceRead(6),
+					ops.SourceCopy(32, 1),
+					ops.SourceRead(32),
 				],
 				list(ob),
 			)
 
-	def test_partial_SourceRead_rollback(self):
+	def test_partial_rollback_scenario_2(self):
 		"""
-		There's no point in a new copy operation eating any SourceRead bytes.
+		Trim the end off the old operation, if that's more efficient.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABC')
 
-		ob.append(ops.SourceRead(6))
-		ob.append(ops.SourceCopy(6, 0), 3)
+		# Start with an operation that will become smaller (hence, more
+		# efficient) if its tail is trimmed off.
+		ob.append(ops.SourceRead(33))
+
+		# Add a new operation with some rollback.
+		ob.append(ops.SourceCopy(32, 1), 1)
 
 		self.assertEqual(
+				# We should have sliced the last byte off the SourceRead
+				# operation, for maximum efficiency.
 				[
-					ops.SourceRead(6),
-					ops.SourceCopy(3, 3),
+					ops.SourceRead(32),
+					ops.SourceCopy(32, 1),
 				],
 				list(ob),
 			)
 
-	def test_partial_SourceCopy_rollback(self):
+	def test_partial_rollback_scenario_3(self):
 		"""
-		There's no point in a new copy operation eating any SourceCopy bytes.
+		Replace Copy operations with TargetRead, if that's more efficient.
 		"""
-		ob = ops.OpBuffer()
+		ob = ops.OpBuffer(b'ABC')
 
-		ob.append(ops.SourceCopy(6, 0))
-		ob.append(ops.SourceRead(6), 3)
+		# Start with an operation with an efficiency > 1.0.
+		ob.append(ops.SourceCopy(32, 1000)) # encoded_size = 3 bytes
+
+		# Add a new operation with enough rollback to make the previous
+		# operation less efficient than a TargetRead.
+		ob.append(ops.SourceRead(32), 31)
 
 		self.assertEqual(
+				# We should have changed the first operation into a TargetRead
+				# operation, for maximum efficiency.
 				[
-					ops.SourceCopy(6, 0),
-					ops.SourceRead(3),
-				],
-				list(ob),
-			)
-
-	def test_partial_TargetCopy_rollback(self):
-		"""
-		There's no point in a new copy operation eating any TargetCopy bytes.
-		"""
-		ob = ops.OpBuffer()
-
-		ob.append(ops.TargetCopy(6, 0))
-		ob.append(ops.TargetCopy(6, 0), 3)
-
-		self.assertEqual(
-				[
-					ops.TargetCopy(6, 0),
-					ops.TargetCopy(3, 3),
+					ops.TargetRead(b'A'),
+					ops.SourceRead(32),
 				],
 				list(ob),
 			)
