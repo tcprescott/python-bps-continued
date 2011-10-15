@@ -383,6 +383,26 @@ class OpBuffer:
 	def __repr__(self):
 		return "<OpBuffer with {0} items>".format(len(self._buf))
 
+	def _append(self, operation):
+		"""
+		Internal method.
+
+		Append the given operation to the list, maintaining internal caches.
+		"""
+		if self._buf:
+			_, lastSourceCopyOffset, lastTargetCopyOffset = self._buf[-1]
+		else:
+			lastSourceCopyOffset = lastTargetCopyOffset = 0
+
+		if isinstance(operation, SourceCopy):
+			lastSourceCopyOffset = operation.offset + operation.bytespan
+		elif isinstance(operation, TargetCopy):
+			lastTargetCopyOffset = operation.offset + operation.bytespan
+
+		self._buf.append(
+				(operation, lastSourceCopyOffset, lastTargetCopyOffset)
+			)
+
 	def append(self, operation, rollback=0):
 		# If our rollback value is big enough, remove entire operations from
 		# the buffer.
@@ -404,19 +424,7 @@ class OpBuffer:
 				# let's trim the front off the new one.
 				operation.shrink(rollback)
 
-		if self._buf:
-			_, lastSourceCopyOffset, lastTargetCopyOffset = self._buf[-1]
-		else:
-			lastSourceCopyOffset = lastTargetCopyOffset = 0
-
-		if isinstance(operation, SourceCopy):
-			lastSourceCopyOffset = operation.offset + operation.bytespan
-		elif isinstance(operation, TargetCopy):
-			lastTargetCopyOffset = operation.offset + operation.bytespan
-
-		self._buf.append(
-				(operation, lastSourceCopyOffset, lastTargetCopyOffset)
-			)
+		self._append(operation)
 
 	def copy_offsets(self, rollback=0):
 		lastSourceCopyOffset = 0
