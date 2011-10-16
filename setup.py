@@ -11,7 +11,7 @@ from distutils.core import setup
 
 setup(
 		name="python-bps",
-		version="3",
+		version="5",
 		description="A toolkit for working with BPS patch files",
 		url="https://gitorious.org/python-blip",
 		author="Timothy Allen",
