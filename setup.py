@@ -10,10 +10,10 @@
 from distutils.core import setup
 
 setup(
-		name="python-bps",
+		name="python-bps-continued",
 		version="7",
 		description="A toolkit for working with BPS patch files",
-		url="https://gitorious.org/python-blip",
+		url="https://github.com/tcprescott/python-bps-continued",
 		author="Timothy Allen",
 		author_email="screwtape@froup.com",
 		license="WTFPL",
