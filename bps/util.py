@@ -12,7 +12,7 @@ Utility methods used when reading BPS patches.
 import sys
 import io
 from array import array
-from time import clock
+from time import perf_counter
 from zlib import crc32
 from bps import constants as C
 
@@ -187,7 +187,7 @@ def bps_progress(iterable):
 	for item in iterable:
 		curpos += item.bytespan
 
-		now = clock()
+		now = perf_counter()
 		if now > nextupdate:
 			sys.stderr.write(
 					"\rWorking... {0:6.3f}%".format(100 * curpos / total)
